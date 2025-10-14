@@ -1,0 +1,28 @@
+[
+  {
+    "q": "What is the capital of France?",
+    "o": ["London", "Berlin", "Paris", "Rome"],
+    "a": 2
+  },
+  {
+    "q": "Solve: 5 + 3 × 2",
+    "o": ["10", "11", "16", "13"],
+    "a": 1
+  },
+  {
+    "q": "What is the result of $\\sqrt{16}$?",
+    "o": ["2", "4", "8", "16"],
+    "a": 1,
+    "l": true
+  },
+  {
+    "q": "Which programming language is this application built with?",
+    "o": ["Python", "Java", "JavaScript", "C++"],
+    "a": 2
+  },
+  {
+    "q": "What does HTML stand for?",
+    "o": ["Hyper Text Markup Language", "High Tech Modern Language", "Home Tool Markup Language", "Hyperlinks and Text Markup Language"],
+    "a": 0
+  }
+]
