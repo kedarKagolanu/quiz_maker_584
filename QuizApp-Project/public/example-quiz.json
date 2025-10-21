@@ -13,7 +13,6 @@
     "q": "What is the result of $\\sqrt{16}$?",
     "o": ["2", "4", "8", "16"],
     "a": 1,
-    "l": true
   },
   {
     "q": "Which programming language is this application built with?",

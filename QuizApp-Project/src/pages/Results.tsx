@@ -4,6 +4,7 @@ import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { storage } from "@/lib/storage";
 import { QuizAttempt, Quiz } from "@/types/quiz";
+import { soundEffects } from "@/lib/soundEffects";
 
 export const Results: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -12,12 +13,25 @@ export const Results: React.FC = () => {
   const [quiz, setQuiz] = useState<Quiz | null>(null);
 
   useEffect(() => {
-    const attempts = storage.getAttempts();
-    const foundAttempt = attempts.find((a) => a.id === id);
-    if (foundAttempt) {
-      setAttempt(foundAttempt);
-      setQuiz(storage.getQuizById(foundAttempt.quizId));
-    }
+    const loadResults = async () => {
+      const attempts = await storage.getAttempts();
+      const foundAttempt = attempts.find((a) => a.id === id);
+      if (foundAttempt) {
+        setAttempt(foundAttempt);
+        const quizData = await storage.getQuizById(foundAttempt.quizId);
+        setQuiz(quizData);
+        
+        // Play sound based on score
+        if (foundAttempt.score >= 70) {
+          soundEffects.correctAnswer();
+        } else if (foundAttempt.score >= 40) {
+          soundEffects.buttonClick();
+        } else {
+          soundEffects.wrongAnswer();
+        }
+      }
+    };
+    loadResults();
   }, [id]);
 
   if (!attempt || !quiz) {
@@ -42,6 +56,13 @@ export const Results: React.FC = () => {
   return (
     <Terminal title="quiz-results">
       <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <TerminalLine prefix="#">Quiz Results</TerminalLine>
+          <TerminalButton onClick={() => navigate("/dashboard")}>
+            back to dashboard
+          </TerminalButton>
+        </div>
+        
         <div>
           <TerminalLine prefix="#">{quiz.title}</TerminalLine>
           <div className="ml-6 mt-2 space-y-1">
@@ -65,15 +86,15 @@ export const Results: React.FC = () => {
                 <div key={idx} className="border border-terminal-accent/30 p-3 rounded">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-terminal-bright">
-                      Q{idx + 1}: {q.l ? <LatexRenderer text={q.q} /> : q.q}
+                      Q{idx + 1}: <LatexRenderer text={q.q} media={quiz.media} />
                     </span>
                     <span className={isCorrect ? "text-terminal-accent" : "text-destructive"}>
                       {isCorrect ? "✓" : "✗"}
                     </span>
                   </div>
                   <div className="text-sm space-y-1 text-terminal-dim">
-                    <div>Your answer: {userAnswer >= 0 ? q.o[userAnswer] : "No answer"}</div>
-                    {!isCorrect && <div>Correct answer: {q.o[q.a]}</div>}
+                    <div>Your answer: {userAnswer >= 0 ? <LatexRenderer text={q.o[userAnswer]} media={quiz.media} /> : "No answer"}</div>
+                    {!isCorrect && <div>Correct answer: <LatexRenderer text={q.o[q.a]} media={quiz.media} /></div>}
                     <div>Time taken: {timeTaken}s</div>
                   </div>
                 </div>

@@ -11,33 +11,37 @@ export const Leaderboard: React.FC = () => {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
 
   useEffect(() => {
-    const foundQuiz = storage.getQuizById(id!);
-    if (!foundQuiz) {
-      navigate("/dashboard");
-      return;
-    }
+    const loadData = async () => {
+      const foundQuiz = await storage.getQuizById(id!);
+      if (!foundQuiz) {
+        navigate("/dashboard");
+        return;
+      }
 
-    setQuiz(foundQuiz);
+      setQuiz(foundQuiz);
 
-    const attempts = storage.getQuizAttempts(id!);
-    const users = storage.getUsers();
+      const attempts = await storage.getQuizAttempts(id!);
+      const users = await storage.getUsers();
 
-    const leaderboard: LeaderboardEntry[] = attempts.map((attempt) => {
-      const user = users.find((u) => u.id === attempt.userId);
-      return {
-        username: user?.username || "Unknown",
-        score: attempt.score,
-        totalTime: attempt.totalTime,
-        completedAt: attempt.completedAt,
-      };
-    });
+      const leaderboard: (LeaderboardEntry & { userId?: string })[] = attempts.map((attempt) => {
+        const user = users.find((u) => u.id === attempt.userId);
+        return {
+          username: user?.username || "Unknown",
+          userId: attempt.userId,
+          score: attempt.score,
+          totalTime: attempt.totalTime,
+          completedAt: attempt.completedAt,
+        };
+      });
 
-    leaderboard.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.totalTime - b.totalTime;
-    });
+      leaderboard.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.totalTime - b.totalTime;
+      });
 
-    setEntries(leaderboard);
+      setEntries(leaderboard);
+    };
+    loadData();
   }, [id, navigate]);
 
   const formatTime = (seconds: number) => {
@@ -71,7 +75,17 @@ export const Leaderboard: React.FC = () => {
                 className="grid grid-cols-4 gap-4 py-2 border-b border-terminal-accent/10"
               >
                 <span className="text-terminal-bright">#{idx + 1}</span>
-                <span>{entry.username}</span>
+                <span className="flex items-center gap-2">
+                  {entry.username}
+                  {entry.userId && (
+                    <button
+                      onClick={() => navigate(`/profile/${entry.userId}`)}
+                      className="text-terminal-accent hover:text-terminal-bright text-xs underline"
+                    >
+                      view profile
+                    </button>
+                  )}
+                </span>
                 <span>{entry.score.toFixed(1)}%</span>
                 <span>{formatTime(entry.totalTime)}</span>
               </div>
