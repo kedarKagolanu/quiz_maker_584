@@ -30,17 +30,20 @@ export const Dashboard: React.FC = () => {
       const allQuizzes = await storage.getQuizzes();
       const allFolders = await storage.getFolders();
       
+      // User's own quizzes
       setMyQuizzes(allQuizzes.filter((q) => q.creator === user.id));
       
-      // Get accessible quizzes and folders
+      // Get all accessible quizzes (user's own + public quizzes + shared quizzes)
       const accessibleQuizzes = allQuizzes.filter(
         (q) => q.isPublic || q.creator === user.id || q.sharedWith?.includes(user.id)
       );
+      
+      // Get all accessible folders (user's own + public folders + shared folders)
       const accessibleFolders = allFolders.filter(
         (f) => f.isPublic || f.creator === user.id || f.sharedWith?.includes(user.id)
       );
       
-      // Build folder tree for available quizzes
+      // Build hierarchical folder tree with quizzes properly organized
       const tree = buildFolderTree(accessibleQuizzes, accessibleFolders);
       setAvailableFolderTree(tree);
       
@@ -51,23 +54,40 @@ export const Dashboard: React.FC = () => {
   }, [user, navigate]);
 
   const buildFolderTree = (quizzes: Quiz[], folders: QuizFolder[]): FolderTree => {
-    // Root level
-    const rootQuizzes = quizzes.filter(q => !q.folderPath);
-    const rootFolders = folders.filter(f => !f.parentPath);
+    // Root level - quizzes without folder path
+    const rootQuizzes = quizzes.filter(q => !q.folderPath || q.folderPath === '');
     
+    // Root level folders - folders without parent path
+    const rootFolders = folders.filter(f => !f.parentPath || f.parentPath === '');
+    
+    // Recursively build subfolder tree
     const buildSubTree = (parentPath: string): FolderTree[] => {
       const childFolders = folders.filter(f => f.parentPath === parentPath);
-      return childFolders.map(folder => ({
-        folder,
-        quizzes: quizzes.filter(q => q.folderPath === getFullPath(folder)),
-        subFolders: buildSubTree(getFullPath(folder))
-      }));
+      
+      return childFolders.map(folder => {
+        const fullPath = getFullPath(folder);
+        return {
+          folder,
+          quizzes: quizzes.filter(q => q.folderPath === fullPath),
+          subFolders: buildSubTree(fullPath)
+        };
+      });
     };
+    
+    // Build root tree
+    const rootSubFolders = rootFolders.map(folder => {
+      const fullPath = getFullPath(folder);
+      return {
+        folder,
+        quizzes: quizzes.filter(q => q.folderPath === fullPath),
+        subFolders: buildSubTree(fullPath)
+      };
+    });
     
     return {
       folder: null, // Root
       quizzes: rootQuizzes,
-      subFolders: buildSubTree('')
+      subFolders: rootSubFolders
     };
   };
 
@@ -188,6 +208,9 @@ export const Dashboard: React.FC = () => {
 
         <div>
           <TerminalLine prefix="#">Available Quizzes & Folders</TerminalLine>
+          <div className="ml-6 text-sm text-terminal-dim mb-2">
+            Showing your quizzes and all public quizzes from other users
+          </div>
           {availableFolderTree && (availableFolderTree.quizzes.length > 0 || availableFolderTree.subFolders.length > 0) ? (
             <div className="ml-6 space-y-2 mt-2">
               {renderFolderTree(availableFolderTree)}

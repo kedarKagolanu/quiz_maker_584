@@ -23,11 +23,10 @@ export const Leaderboard: React.FC = () => {
       const attempts = await storage.getQuizAttempts(id!);
       const users = await storage.getUsers();
 
-      const leaderboard: (LeaderboardEntry & { userId?: string })[] = attempts.map((attempt) => {
+      const leaderboard: (LeaderboardEntry & { username?: string })[] = attempts.map((attempt) => {
         const user = users.find((u) => u.id === attempt.userId);
         return {
           username: user?.username || "Unknown",
-          userId: attempt.userId,
           score: attempt.score,
           totalTime: attempt.totalTime,
           completedAt: attempt.completedAt,
@@ -77,9 +76,9 @@ export const Leaderboard: React.FC = () => {
                 <span className="text-terminal-bright">#{idx + 1}</span>
                 <span className="flex items-center gap-2">
                   {entry.username}
-                  {entry.userId && (
+                  {entry.username && entry.username !== "Unknown" && (
                     <button
-                      onClick={() => navigate(`/profile/${entry.userId}`)}
+                      onClick={() => navigate(`/profile/${entry.username}`)}
                       className="text-terminal-accent hover:text-terminal-bright text-xs underline"
                     >
                       view profile

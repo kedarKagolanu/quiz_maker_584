@@ -36,7 +36,7 @@ const App = () => (
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/create" element={<ProtectedRoute><QuizCreator /></ProtectedRoute>} />
             <Route path="/my-quizzes" element={<ProtectedRoute><MyQuizzesExplorer /></ProtectedRoute>} />
-            <Route path="/profile/:userId?" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/profile/:username?" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/quiz/:id" element={<ProtectedRoute><QuizTaker /></ProtectedRoute>} />
             <Route path="/results/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />
             <Route path="/leaderboard/:id" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
