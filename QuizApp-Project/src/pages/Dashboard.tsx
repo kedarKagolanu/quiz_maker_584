@@ -4,7 +4,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
 import { Quiz, QuizFolder } from "@/types/quiz";
-import { ChevronRight, ChevronDown, Folder, FileText } from "lucide-react";
+import { ChevronRight, ChevronDown, Folder, FileText, Send, Inbox } from "lucide-react";
+import { toast } from "sonner";
+import { ThemeSelector } from "@/components/ThemeSelector";
+import { MusicUploader } from "@/components/MusicUploader";
 
 interface FolderTree {
   folder: QuizFolder | null;
@@ -19,6 +22,8 @@ export const Dashboard: React.FC = () => {
   const [attempts, setAttempts] = useState<any[]>([]);
   const [availableFolderTree, setAvailableFolderTree] = useState<FolderTree | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
+  const [showAccessCodeInput, setShowAccessCodeInput] = useState(false);
+  const [accessCodeInput, setAccessCodeInput] = useState("");
 
   useEffect(() => {
     if (!user) {
@@ -162,6 +167,47 @@ export const Dashboard: React.FC = () => {
     );
   };
 
+  const handleAccessCode = async () => {
+    if (!accessCodeInput.trim()) return;
+    
+    const quiz = await storage.getQuizByAccessCode(accessCodeInput.trim());
+    const folder = await storage.getFolderByAccessCode(accessCodeInput.trim());
+    
+    if (quiz) {
+      setAccessCodeInput("");
+      setShowAccessCodeInput(false);
+      navigate(`/quiz/${quiz.id}`);
+      toast.success(`Access granted to quiz: ${quiz.title}`);
+    } else if (folder) {
+      setAccessCodeInput("");
+      setShowAccessCodeInput(false);
+      // Reload data after accessing folder
+      const allQuizzes = await storage.getQuizzes();
+      const allFolders = await storage.getFolders();
+      
+      // User's own quizzes
+      setMyQuizzes(allQuizzes.filter((q) => q.creator === user?.id));
+      
+      // Get all accessible quizzes (user's own + public quizzes + shared quizzes)
+      const accessibleQuizzes = allQuizzes.filter(
+        (q) => q.isPublic || q.creator === user?.id || q.sharedWith?.includes(user?.id || '')
+      );
+      
+      // Get all accessible folders (user's own + public folders + shared folders)
+      const accessibleFolders = allFolders.filter(
+        (f) => f.isPublic || f.creator === user?.id || f.sharedWith?.includes(user?.id || '')
+      );
+      
+      // Build hierarchical folder tree with quizzes properly organized
+      const tree = buildFolderTree(accessibleQuizzes, accessibleFolders);
+      setAvailableFolderTree(tree);
+      
+      toast.success(`Access granted to folder: ${folder.name}`);
+    } else {
+      toast.error("Invalid access code");
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate("/");
@@ -184,16 +230,21 @@ export const Dashboard: React.FC = () => {
           <div className="flex flex-wrap gap-3 mt-2 ml-6">
             <TerminalButton onClick={() => navigate("/create")}>create quiz</TerminalButton>
             <TerminalButton onClick={() => navigate("/my-quizzes")}>my quizzes ({myQuizzes.length})</TerminalButton>
-            <TerminalButton onClick={() => {
-              const musicUploadBtn = document.getElementById('music-upload-input');
-              if (musicUploadBtn) musicUploadBtn.click();
-            }}>upload music</TerminalButton>
+            <MusicUploader />
+            <TerminalButton onClick={() => navigate("/edit-requests")}>
+              <Inbox className="w-4 h-4 inline mr-1" />edit requests
+            </TerminalButton>
+            <TerminalButton onClick={() => setShowAccessCodeInput(true)}>
+              <Send className="w-4 h-4 inline mr-1" />enter access code
+            </TerminalButton>
             {isAdmin && (
               <TerminalButton onClick={() => navigate("/admin")}>admin panel</TerminalButton>
             )}
             <TerminalButton onClick={handleLogout}>logout</TerminalButton>
           </div>
         </div>
+
+        <ThemeSelector />
 
         <div>
           <TerminalLine prefix="#">Statistics</TerminalLine>
@@ -222,6 +273,39 @@ export const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Access code dialog */}
+      {showAccessCodeInput && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-terminal border border-terminal-accent rounded p-6 max-w-md w-full mx-4">
+            <TerminalLine prefix="#">Enter Access Code</TerminalLine>
+            <div className="mt-4 space-y-3">
+              <input
+                type="text"
+                value={accessCodeInput}
+                onChange={(e) => setAccessCodeInput(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAccessCode();
+                  if (e.key === 'Escape') {
+                    setShowAccessCodeInput(false);
+                    setAccessCodeInput("");
+                  }
+                }}
+                className="w-full bg-terminal border border-terminal-accent text-terminal-foreground px-3 py-2 rounded uppercase"
+                placeholder="QUIZ-CODE"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <TerminalButton onClick={handleAccessCode}>submit</TerminalButton>
+                <TerminalButton onClick={() => {
+                  setShowAccessCodeInput(false);
+                  setAccessCodeInput("");
+                }}>cancel</TerminalButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Terminal>
   );
 };

@@ -44,13 +44,17 @@ export const MusicPlayerAdvanced: React.FC = () => {
   const gainNodeRef = useRef<GainNode | null>(null);
   const intervalRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const inputElementRef = useRef<HTMLInputElement | null>(null);
 
   // Mount global input for dashboard access
   useEffect(() => {
     if (!user) return;
     
     const existingInput = document.getElementById('music-upload-input');
-    if (existingInput) return; // Already exists
+    if (existingInput) {
+      inputElementRef.current = existingInput as HTMLInputElement;
+      return; // Already exists
+    }
     
     const globalInput = document.createElement('input');
     globalInput.type = 'file';
@@ -83,9 +87,14 @@ export const MusicPlayerAdvanced: React.FC = () => {
       }
     });
     document.body.appendChild(globalInput);
+    inputElementRef.current = globalInput;
+    
     return () => {
-      const input = document.getElementById('music-upload-input');
-      if (input) document.body.removeChild(input);
+      // Safe cleanup: check if element exists and has a parent before removing
+      if (inputElementRef.current && inputElementRef.current.parentNode) {
+        inputElementRef.current.parentNode.removeChild(inputElementRef.current);
+      }
+      inputElementRef.current = null;
     };
   }, [user]);
 

@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
 import { Quiz, QuizAttempt, User, QuizFolder } from "@/types/quiz";
-import { Trophy, FileText, History, User as UserIcon, Upload, Loader2 } from "lucide-react";
+import { Trophy, FileText, History, User as UserIcon, Upload, Loader2, Music } from "lucide-react";
 import { toast } from "sonner";
 import { quizSchema, folderNameSchema, validateInput } from "@/lib/validation";
 import { handleError } from "@/lib/errorHandler";
@@ -286,6 +286,39 @@ export const Profile: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Music Library */}
+        {isOwnProfile && (
+          <div>
+            <TerminalLine prefix="#">Music Library</TerminalLine>
+            {(!profileUser.musicFiles || profileUser.musicFiles.length === 0) ? (
+              <TerminalLine prefix="-" className="ml-6 text-terminal-dim">
+                No music files uploaded yet. Upload music when creating or editing a quiz.
+              </TerminalLine>
+            ) : (
+              <div className="ml-6 space-y-2 mt-2">
+                {profileUser.musicFiles.map((music, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between border border-terminal-accent/30 p-3 rounded"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Music className="w-5 h-5 text-terminal-accent" />
+                      <div>
+                        <div className="text-terminal-bright">{music.name}</div>
+                        <div className="text-xs text-terminal-dim">Audio file</div>
+                      </div>
+                    </div>
+                    <audio controls className="max-w-xs">
+                      <source src={music.url} type="audio/mpeg" />
+                      Your browser does not support the audio element.
+                    </audio>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Quiz Attempts History */}
         <div>

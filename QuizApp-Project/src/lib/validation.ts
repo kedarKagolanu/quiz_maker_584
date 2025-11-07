@@ -83,12 +83,10 @@ export const folderFormSchema = z.object({
 
 // Quiz question validation
 export const quizQuestionSchema = z.object({
-  q: z.string().trim().min(1, "Question text cannot be empty").max(1000, "Question text too long"),
-  o: z.array(z.string().trim().min(1, "Option cannot be empty").max(500, "Option text too long"))
-    .min(2, "At least 2 options required")
-    .max(10, "Maximum 10 options allowed"),
-  a: z.number().int().min(0, "Answer index must be non-negative"),
-  desc: z.string().trim().max(2000, "Description too long").optional(),
+  q: questionTextSchema,
+  o: z.array(answerTextSchema).min(2, "At least 2 options required").max(10, "Maximum 10 options allowed"),
+  a: z.number().int().nonnegative("Answer index must be non-negative"),
+  desc: z.string().max(500).optional(),
   img: z.string().optional(),
   audio: z.string().optional(),
 });

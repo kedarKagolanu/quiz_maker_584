@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { IStorageDriver } from './IStorageDriver';
-import { Quiz, QuizAttempt, User, QuizFolder } from '@/types/quiz';
+import { Quiz, QuizAttempt, User, QuizFolder, QuizPermission, FolderPermission, EditRequest } from '@/types/quiz';
 
 /**
  * Supabase/PostgreSQL Storage Driver
@@ -76,7 +76,9 @@ export class SupabaseDriver implements IStorageDriver {
       layout: dbQuiz.layout || 'default',
       folderPath: dbQuiz.folderPath,
       sharedWith: dbQuiz.sharedWith || [],
-      forkedFrom: dbQuiz.forkedFrom
+      forkedFrom: dbQuiz.forkedFrom,
+      accessCode: dbQuiz.accessCode,
+      editMode: dbQuiz.editMode || 'no_edits'
     };
   }
 
@@ -96,7 +98,9 @@ export class SupabaseDriver implements IStorageDriver {
       layout: quiz.layout || 'default',
       folderPath: quiz.folderPath,
       sharedWith: quiz.sharedWith || [],
-      forkedFrom: quiz.forkedFrom
+      forkedFrom: quiz.forkedFrom,
+      accessCode: quiz.accessCode,
+      editMode: quiz.editMode || 'no_edits'
     };
   }
 
@@ -134,7 +138,9 @@ export class SupabaseDriver implements IStorageDriver {
       createdAt: dbFolder.createdAt,
       creator: dbFolder.creator,
       isPublic: dbFolder.isPublic,
-      sharedWith: dbFolder.sharedWith || []
+      sharedWith: dbFolder.sharedWith || [],
+      accessCode: dbFolder.accessCode,
+      editMode: dbFolder.editMode || 'no_edits'
     };
   }
 
@@ -146,7 +152,9 @@ export class SupabaseDriver implements IStorageDriver {
       createdAt: folder.createdAt,
       creator: folder.creator,
       isPublic: folder.isPublic,
-      sharedWith: folder.sharedWith || []
+      sharedWith: folder.sharedWith || [],
+      accessCode: folder.accessCode,
+      editMode: folder.editMode || 'no_edits'
     };
   }
 
@@ -368,5 +376,203 @@ export class SupabaseDriver implements IStorageDriver {
       .remove([fileName]);
     
     if (error) this.handleDbError(error, 'delete media');
+  }
+
+  // Permission operations
+  async getQuizPermissions(quizId: string): Promise<QuizPermission[]> {
+    const { data, error } = await this.supabase
+      .from('quiz_permissions')
+      .select('*')
+      .eq('quizId', quizId);
+    
+    if (error) this.handleDbError(error, 'fetch quiz permissions');
+    
+    return (data || []).map(p => ({
+      id: p.id,
+      quizId: p.quizId,
+      userId: p.userId,
+      role: p.role,
+      grantedBy: p.grantedBy,
+      grantedAt: new Date(p.grantedAt).getTime()
+    }));
+  }
+
+  async saveQuizPermission(permission: Omit<QuizPermission, 'id' | 'grantedAt'>): Promise<void> {
+    const { error } = await this.supabase
+      .from('quiz_permissions')
+      .insert({
+        quizId: permission.quizId,
+        userId: permission.userId,
+        role: permission.role,
+        grantedBy: permission.grantedBy
+      });
+    
+    if (error) this.handleDbError(error, 'save quiz permission');
+  }
+
+  async updateQuizPermission(permissionId: string, role: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('quiz_permissions')
+      .update({ role })
+      .eq('id', permissionId);
+    
+    if (error) this.handleDbError(error, 'update quiz permission');
+  }
+
+  async deleteQuizPermission(permissionId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('quiz_permissions')
+      .delete()
+      .eq('id', permissionId);
+    
+    if (error) this.handleDbError(error, 'delete quiz permission');
+  }
+
+  async getFolderPermissions(folderId: string): Promise<FolderPermission[]> {
+    const { data, error } = await this.supabase
+      .from('folder_permissions')
+      .select('*')
+      .eq('folderId', folderId);
+    
+    if (error) this.handleDbError(error, 'fetch folder permissions');
+    
+    return (data || []).map(p => ({
+      id: p.id,
+      folderId: p.folderId,
+      userId: p.userId,
+      role: p.role,
+      grantedBy: p.grantedBy,
+      grantedAt: new Date(p.grantedAt).getTime()
+    }));
+  }
+
+  async saveFolderPermission(permission: Omit<FolderPermission, 'id' | 'grantedAt'>): Promise<void> {
+    const { error } = await this.supabase
+      .from('folder_permissions')
+      .insert({
+        folderId: permission.folderId,
+        userId: permission.userId,
+        role: permission.role,
+        grantedBy: permission.grantedBy
+      });
+    
+    if (error) this.handleDbError(error, 'save folder permission');
+  }
+
+  async updateFolderPermission(permissionId: string, role: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('folder_permissions')
+      .update({ role })
+      .eq('id', permissionId);
+    
+    if (error) this.handleDbError(error, 'update folder permission');
+  }
+
+  async deleteFolderPermission(permissionId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('folder_permissions')
+      .delete()
+      .eq('id', permissionId);
+    
+    if (error) this.handleDbError(error, 'delete folder permission');
+  }
+
+  async getEditRequests(resourceType?: 'quiz' | 'folder', resourceId?: string): Promise<EditRequest[]> {
+    let query = this.supabase
+      .from('edit_requests')
+      .select('*')
+      .order('requestedAt', { ascending: false });
+    
+    if (resourceType) {
+      query = query.eq('resourceType', resourceType);
+    }
+    if (resourceId) {
+      query = query.eq('resourceId', resourceId);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) this.handleDbError(error, 'fetch edit requests');
+    
+    return (data || []).map(r => ({
+      id: r.id,
+      resourceType: r.resourceType,
+      resourceId: r.resourceId,
+      requestedBy: r.requestedBy,
+      requestedAt: new Date(r.requestedAt).getTime(),
+      status: r.status,
+      reviewedBy: r.reviewedBy,
+      reviewedAt: r.reviewedAt ? new Date(r.reviewedAt).getTime() : undefined,
+      changes: r.changes,
+      message: r.message,
+      reviewMessage: r.reviewMessage
+    }));
+  }
+
+  async saveEditRequest(request: Omit<EditRequest, 'id' | 'requestedAt' | 'status'>): Promise<EditRequest> {
+    const { data, error } = await this.supabase
+      .from('edit_requests')
+      .insert({
+        resourceType: request.resourceType,
+        resourceId: request.resourceId,
+        requestedBy: request.requestedBy,
+        changes: request.changes,
+        message: request.message
+      })
+      .select()
+      .single();
+    
+    if (error) this.handleDbError(error, 'save edit request');
+    
+    return {
+      id: data.id,
+      resourceType: data.resourceType,
+      resourceId: data.resourceId,
+      requestedBy: data.requestedBy,
+      requestedAt: new Date(data.requestedAt).getTime(),
+      status: data.status,
+      changes: data.changes,
+      message: data.message
+    };
+  }
+
+  async updateEditRequest(requestId: string, status: string, reviewedBy: string, reviewMessage?: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('edit_requests')
+      .update({
+        status,
+        reviewedBy,
+        reviewedAt: new Date().toISOString(),
+        reviewMessage
+      })
+      .eq('id', requestId);
+    
+    if (error) this.handleDbError(error, 'update edit request');
+  }
+
+  async getQuizByAccessCode(accessCode: string): Promise<Quiz | null> {
+    const { data, error } = await this.supabase
+      .from('quizzes')
+      .select('*')
+      .eq('accessCode', accessCode)
+      .eq('isPublic', false) // Only allow access code for private quizzes
+      .maybeSingle();
+    
+    if (error) this.handleDbError(error, 'fetch quiz by access code');
+    
+    return data ? this.mapQuizFromDb(data) : null;
+  }
+
+  async getFolderByAccessCode(accessCode: string): Promise<QuizFolder | null> {
+    const { data, error } = await this.supabase
+      .from('quiz_folders')
+      .select('*')
+      .eq('accessCode', accessCode)
+      .eq('isPublic', false) // Only allow access code for private folders
+      .maybeSingle();
+    
+    if (error) this.handleDbError(error, 'fetch folder by access code');
+    
+    return data ? this.mapFolderFromDb(data) : null;
   }
 }

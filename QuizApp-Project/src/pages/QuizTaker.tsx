@@ -68,6 +68,15 @@ export const QuizTaker: React.FC = () => {
     };
     
     loadQuiz();
+
+    // Warn user before navigating away
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [id, user, navigate]);
 
   useEffect(() => {
@@ -314,6 +323,16 @@ export const QuizTaker: React.FC = () => {
 
   return (
       <Terminal title={`quiz: ${quiz.title}`}>
+        {/* Warning Banner */}
+        <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-500/50 rounded">
+          <div className="flex items-center gap-2 text-yellow-300">
+            <span className="text-lg">⚠️</span>
+            <span className="text-sm">
+              <strong>Warning:</strong> Navigating away or refreshing will restart the quiz from the beginning.
+            </span>
+          </div>
+        </div>
+
         <div className={`flex gap-4 ${navPosition === 'bottom' ? 'flex-col' : navPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
         {/* Question Navigation */}
         {renderQuestionNav()}

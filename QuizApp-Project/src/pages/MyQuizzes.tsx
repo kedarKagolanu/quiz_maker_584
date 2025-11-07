@@ -5,7 +5,7 @@ import { Terminal, TerminalLine, TerminalButton, TerminalInput } from "@/compone
 import { storage } from "@/lib/storage";
 import { Quiz, QuizFolder } from "@/types/quiz";
 import { toast } from "sonner";
-import { Copy, Edit, Trash2, Folder, FolderOpen, ChevronRight } from "lucide-react";
+import { Copy, Edit, Trash2, Folder, FolderOpen, ChevronRight, Send } from "lucide-react";
 
 export const MyQuizzes: React.FC = () => {
   const { user } = useAuth();
@@ -29,12 +29,14 @@ export const MyQuizzes: React.FC = () => {
   }, [user, navigate, currentPath]);
 
   const loadData = async () => {
-    const allQuizzes = await storage.getQuizzes();
-    const userQuizzes = allQuizzes.filter((q) => q.creator === user?.id);
+    if (!user) return;
+    
+    // Get user's quizzes (created + permission-based)
+    const userQuizzes = await storage.getUserQuizzes(user.id);
     setQuizzes(userQuizzes);
     
-    const allFolders = await storage.getFolders();
-    const userFolders = allFolders.filter((f) => f.creator === user?.id);
+    // Get user's folders (created + permission-based)
+    const userFolders = await storage.getUserFolders(user.id);
     setFolders(userFolders);
   };
 
@@ -309,6 +311,11 @@ export const MyQuizzes: React.FC = () => {
                 >
                   📁 move
                 </TerminalButton>
+                {quiz.editMode === 'pull_requests' && quiz.creator !== user?.id && (
+                  <TerminalButton onClick={() => navigate(`/request-access?type=quiz&id=${quiz.id}`)}>
+                    <Send className="w-4 h-4 inline mr-1" />send edit request
+                  </TerminalButton>
+                )}
                 <TerminalButton onClick={() => handleDeleteQuiz(quiz.id)}>
                   <Trash2 className="w-4 h-4 inline mr-1" />delete
                 </TerminalButton>

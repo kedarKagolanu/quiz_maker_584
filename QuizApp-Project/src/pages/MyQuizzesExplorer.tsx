@@ -419,6 +419,16 @@ export const MyQuizzesExplorer: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            navigate(`/quiz-permissions/${quiz.id}`);
+                          }}
+                          className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
+                          title="Manage Permissions"
+                        >
+                          <Share2 className="w-4 h-4 text-terminal-foreground" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             handleDuplicate(quiz);
                           }}
                           className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"

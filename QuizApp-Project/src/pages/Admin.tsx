@@ -89,8 +89,7 @@ export const Admin: React.FC = () => {
       await loadData();
       toast.success("Quiz deleted");
     } catch (error) {
-      console.error("Error deleting quiz:", error);
-      toast.error("Failed to delete quiz");
+      handleError(error, { userMessage: "Failed to delete quiz" });
     }
   };
 

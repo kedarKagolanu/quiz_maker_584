@@ -50,15 +50,39 @@ export class StorageService {
 
   async getUserQuizzes(userId: string): Promise<Quiz[]> {
     const quizzes = await this.driver.getQuizzes();
-    return quizzes.filter((q) => q.creator === userId);
+    
+    // Get permissions to include quizzes where user has been granted access
+    let permittedQuizIds: string[] = [];
+    if (this.driver.getQuizPermissions) {
+      const allPermissions = await this.driver.getQuizPermissions('');
+      permittedQuizIds = allPermissions
+        .filter(p => p.userId === userId)
+        .map(p => p.quizId);
+    }
+    
+    return quizzes.filter(quiz =>
+      quiz.creator === userId ||
+      permittedQuizIds.includes(quiz.id)
+    );
   }
 
   async getAccessibleQuizzes(userId: string): Promise<Quiz[]> {
     const quizzes = await this.driver.getQuizzes();
-    return quizzes.filter((q) => 
-      q.isPublic || 
-      q.creator === userId ||
-      q.sharedWith?.includes(userId)
+    
+    // Get permissions to include quizzes where user has been granted access
+    let permittedQuizIds: string[] = [];
+    if (this.driver.getQuizPermissions) {
+      const allPermissions = await this.driver.getQuizPermissions('');
+      permittedQuizIds = allPermissions
+        .filter(p => p.userId === userId)
+        .map(p => p.quizId);
+    }
+    
+    return quizzes.filter(quiz => 
+      quiz.isPublic || 
+      quiz.creator === userId ||
+      quiz.sharedWith?.includes(userId) ||
+      permittedQuizIds.includes(quiz.id)
     );
   }
 
@@ -147,7 +171,12 @@ export class StorageService {
 
   async getUserFolders(userId: string): Promise<QuizFolder[]> {
     const folders = await this.driver.getFolders();
-    return folders.filter((f) => f.creator === userId);
+    const permissions = await this.getFolderPermissions?.('') || [];
+    
+    return folders.filter(folder => 
+      folder.creator === userId ||
+      permissions.some(p => p.folderId === folder.id && p.userId === userId)
+    );
   }
 
   async saveFolder(folder: QuizFolder): Promise<void> {
@@ -188,5 +217,92 @@ export class StorageService {
       return this.driver.deleteMedia(id);
     }
     // No-op for localStorage
+  }
+
+  // Permission operations
+  async getQuizPermissions(quizId: string): Promise<import("@/types/quiz").QuizPermission[]> {
+    if (this.driver.getQuizPermissions) {
+      return this.driver.getQuizPermissions(quizId);
+    }
+    return [];
+  }
+
+  async saveQuizPermission(permission: Omit<import("@/types/quiz").QuizPermission, 'id' | 'grantedAt'>): Promise<void> {
+    if (this.driver.saveQuizPermission) {
+      return this.driver.saveQuizPermission(permission);
+    }
+  }
+
+  async updateQuizPermission(permissionId: string, role: string): Promise<void> {
+    if (this.driver.updateQuizPermission) {
+      return this.driver.updateQuizPermission(permissionId, role);
+    }
+  }
+
+  async deleteQuizPermission(permissionId: string): Promise<void> {
+    if (this.driver.deleteQuizPermission) {
+      return this.driver.deleteQuizPermission(permissionId);
+    }
+  }
+
+  async getFolderPermissions(folderId: string): Promise<import("@/types/quiz").FolderPermission[]> {
+    if (this.driver.getFolderPermissions) {
+      return this.driver.getFolderPermissions(folderId);
+    }
+    return [];
+  }
+
+  async saveFolderPermission(permission: Omit<import("@/types/quiz").FolderPermission, 'id' | 'grantedAt'>): Promise<void> {
+    if (this.driver.saveFolderPermission) {
+      return this.driver.saveFolderPermission(permission);
+    }
+  }
+
+  async updateFolderPermission(permissionId: string, role: string): Promise<void> {
+    if (this.driver.updateFolderPermission) {
+      return this.driver.updateFolderPermission(permissionId, role);
+    }
+  }
+
+  async deleteFolderPermission(permissionId: string): Promise<void> {
+    if (this.driver.deleteFolderPermission) {
+      return this.driver.deleteFolderPermission(permissionId);
+    }
+  }
+
+  // Edit request operations
+  async getEditRequests(resourceType?: 'quiz' | 'folder', resourceId?: string): Promise<import("@/types/quiz").EditRequest[]> {
+    if (this.driver.getEditRequests) {
+      return this.driver.getEditRequests(resourceType, resourceId);
+    }
+    return [];
+  }
+
+  async saveEditRequest(request: Omit<import("@/types/quiz").EditRequest, 'id' | 'requestedAt' | 'status'>): Promise<import("@/types/quiz").EditRequest> {
+    if (this.driver.saveEditRequest) {
+      return this.driver.saveEditRequest(request);
+    }
+    throw new Error("Edit requests not supported by current driver");
+  }
+
+  async updateEditRequest(requestId: string, status: string, reviewedBy: string, reviewMessage?: string): Promise<void> {
+    if (this.driver.updateEditRequest) {
+      return this.driver.updateEditRequest(requestId, status, reviewedBy, reviewMessage);
+    }
+  }
+
+  // Access code operations
+  async getQuizByAccessCode(accessCode: string): Promise<Quiz | null> {
+    if (this.driver.getQuizByAccessCode) {
+      return this.driver.getQuizByAccessCode(accessCode);
+    }
+    return null;
+  }
+
+  async getFolderByAccessCode(accessCode: string): Promise<QuizFolder | null> {
+    if (this.driver.getFolderByAccessCode) {
+      return this.driver.getFolderByAccessCode(accessCode);
+    }
+    return null;
   }
 }

@@ -25,6 +25,8 @@ export const QuizCreator: React.FC = () => {
   const [layout, setLayout] = useState<'default' | 'split'>('default');
   const [folderPath, setFolderPath] = useState<string>("");
   const [folders, setFolders] = useState<QuizFolder[]>([]);
+  const [accessCode, setAccessCode] = useState("");
+  const [editMode, setEditMode] = useState<'no_edits' | 'pull_requests'>('no_edits');
   const [jsonError, setJsonError] = useState("");
   const [errorLine, setErrorLine] = useState<number | null>(null);
   const [errorColumn, setErrorColumn] = useState<number | null>(null);
@@ -55,6 +57,8 @@ export const QuizCreator: React.FC = () => {
           setUploadedMedia(quiz.media || []);
           setLayout(quiz.layout || 'default');
           setFolderPath(quiz.folderPath || "");
+          setAccessCode(quiz.accessCode || "");
+          setEditMode(quiz.editMode || 'no_edits');
         }
       };
       loadQuiz();
@@ -113,6 +117,8 @@ export const QuizCreator: React.FC = () => {
             media: uploadedMedia,
             layout,
             folderPath: folderPath || undefined,
+            accessCode: !isPublic && accessCode ? accessCode : undefined,
+            editMode,
           };
           await storage.updateQuiz(updatedQuiz);
           toast.success("Quiz updated successfully!");
@@ -132,6 +138,8 @@ export const QuizCreator: React.FC = () => {
           media: uploadedMedia,
           layout,
           folderPath: folderPath || undefined,
+          accessCode: !isPublic && accessCode ? accessCode : undefined,
+          editMode,
         };
         await storage.saveQuiz(quiz);
         toast.success("Quiz created successfully!");
@@ -241,6 +249,16 @@ export const QuizCreator: React.FC = () => {
               <div className="text-xs mt-1 opacity-70">💡 Double-click to jump to error location</div>
             </div>
           )}
+          
+          {/* Image upload tips */}
+          <div className="mt-3 p-3 bg-terminal-accent/5 border border-terminal-accent/20 rounded text-xs text-terminal-dim space-y-1">
+            <div className="font-medium text-terminal-bright">📸 Media Upload Tips:</div>
+            <div>• <strong>Image size:</strong> Keep images under 500KB for optimal performance</div>
+            <div>• <strong>Resolution:</strong> 1200x800px or smaller recommended</div>
+            <div>• <strong>Format:</strong> JPG, PNG, or WebP supported</div>
+            <div>• <strong>Audio:</strong> MP3 format, under 2MB recommended</div>
+            <div>• Large files may cause slow loading or upload failures</div>
+          </div>
         </div>
 
         <div>
@@ -382,6 +400,43 @@ export const QuizCreator: React.FC = () => {
                 className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded w-24"
                 placeholder="None"
               />
+            </div>
+
+            {!isPublic && (
+              <div className="border border-terminal-accent/30 bg-terminal-accent/5 rounded p-3 space-y-2">
+                <div className="text-terminal-bright text-sm font-medium">📋 Private Quiz Access Code</div>
+                <div className="text-terminal-dim text-xs">
+                  Share this code with specific users to grant them access to your private quiz.
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">Access code:</span>
+                  <input
+                    type="text"
+                    value={accessCode}
+                    onChange={(e) => setAccessCode(e.target.value)}
+                    className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded w-32"
+                    placeholder="e.g., MATH101"
+                  />
+                  <button
+                    onClick={() => setAccessCode(Math.random().toString(36).substring(2, 10).toUpperCase())}
+                    className="bg-terminal-accent/20 hover:bg-terminal-accent/30 text-terminal-foreground px-3 py-1 rounded text-sm"
+                  >
+                    Generate
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <span>Edit mode:</span>
+              <select
+                value={editMode}
+                onChange={(e) => setEditMode(e.target.value as 'no_edits' | 'pull_requests')}
+                className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded"
+              >
+                <option value="no_edits">No edits accepted</option>
+                <option value="pull_requests">Pull requests accepted</option>
+              </select>
             </div>
           </div>
         </div>

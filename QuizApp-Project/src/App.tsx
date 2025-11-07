@@ -13,6 +13,9 @@ import { Results } from "./pages/Results";
 import { Leaderboard } from "./pages/Leaderboard";
 import { MyQuizzes } from "./pages/MyQuizzes";
 import { MyQuizzesExplorer } from "./pages/MyQuizzesExplorer";
+import { QuizPermissions } from "./pages/QuizPermissions";
+import { EditRequests } from "./pages/EditRequests";
+import { RequestAccess } from "./pages/RequestAccess";
 import { Admin } from "./pages/Admin";
 import { Profile } from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -36,11 +39,15 @@ const App = () => (
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/create" element={<ProtectedRoute><QuizCreator /></ProtectedRoute>} />
             <Route path="/my-quizzes" element={<ProtectedRoute><MyQuizzesExplorer /></ProtectedRoute>} />
+            <Route path="/quiz-permissions/:quizId" element={<ProtectedRoute><QuizPermissions /></ProtectedRoute>} />
+            <Route path="/edit-requests" element={<ProtectedRoute><EditRequests /></ProtectedRoute>} />
+            <Route path="/request-access" element={<ProtectedRoute><RequestAccess /></ProtectedRoute>} />
             <Route path="/profile/:username?" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/quiz/:id" element={<ProtectedRoute><QuizTaker /></ProtectedRoute>} />
             <Route path="/results/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />
             <Route path="/leaderboard/:id" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+            <Route path="/my-quizzes-explorer" element={<ProtectedRoute><MyQuizzesExplorer /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
