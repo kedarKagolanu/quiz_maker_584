@@ -156,7 +156,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const redirectUrl = `${window.location.origin}/reset-password`;
+      // Use environment-specific redirect URL
+      const isProduction = window.location.hostname.includes('vercel.app') || 
+                          window.location.hostname !== 'localhost';
+      
+      const redirectUrl = isProduction 
+        ? `https://${window.location.hostname}/reset-password`
+        : `${window.location.origin}/reset-password`;
+      
+      console.log('🔗 Reset password redirect URL:', redirectUrl); // Debug log
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,

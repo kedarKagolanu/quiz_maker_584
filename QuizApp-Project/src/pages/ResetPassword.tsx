@@ -19,29 +19,61 @@ export const ResetPassword: React.FC = () => {
       const accessToken = searchParams.get('access_token');
       const refreshToken = searchParams.get('refresh_token');
       const type = searchParams.get('type');
+      const error = searchParams.get('error');
+      const errorDescription = searchParams.get('error_description');
+
+      console.log('🔍 Reset password URL params:', {
+        accessToken: accessToken ? 'present' : 'missing',
+        refreshToken: refreshToken ? 'present' : 'missing',
+        type,
+        error,
+        errorDescription,
+        fullURL: window.location.href
+      });
+
+      // Check for error params first
+      if (error) {
+        console.error('❌ Reset password error:', error, errorDescription);
+        toast.error(`Reset failed: ${errorDescription || error}`);
+        setTimeout(() => navigate('/auth'), 3000);
+        setIsChecking(false);
+        return;
+      }
 
       if (type === 'recovery' && accessToken && refreshToken) {
         if (supabase) {
           try {
-            const { error } = await supabase.auth.setSession({
+            console.log('🔄 Setting session with tokens...');
+            const { data, error } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
 
-            if (!error) {
+            console.log('✅ Session set result:', { data: !!data, error: error?.message });
+
+            if (!error && data.session) {
+              console.log('✅ Valid reset token, user authenticated');
               setIsValidToken(true);
+              toast.success('Reset link verified! Please set your new password.');
             } else {
+              console.error('❌ Session error:', error?.message);
               toast.error('Invalid or expired reset link');
-              navigate('/auth');
+              setTimeout(() => navigate('/auth'), 3000);
             }
           } catch (error) {
+            console.error('❌ Exception setting session:', error);
             toast.error('Invalid reset link');
-            navigate('/auth');
+            setTimeout(() => navigate('/auth'), 3000);
           }
+        } else {
+          console.error('❌ Supabase not configured');
+          toast.error('Database not configured');
+          setTimeout(() => navigate('/auth'), 3000);
         }
       } else {
-        toast.error('Invalid reset link');
-        navigate('/auth');
+        console.error('❌ Missing required parameters:', { type, accessToken: !!accessToken, refreshToken: !!refreshToken });
+        toast.error('Invalid reset link - missing required parameters');
+        setTimeout(() => navigate('/auth'), 3000);
       }
       
       setIsChecking(false);
