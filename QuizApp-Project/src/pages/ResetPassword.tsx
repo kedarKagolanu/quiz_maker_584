@@ -139,9 +139,15 @@ export const ResetPassword: React.FC = () => {
       <Terminal title="password reset">
         <TerminalLine>Welcome to QuizCLI - Terminal Quiz System</TerminalLine>
         <TerminalLine prefix="✗">Invalid or expired reset link</TerminalLine>
+        <TerminalLine prefix="💡">If you just clicked the email link, please wait 5-10 seconds...</TerminalLine>
+        <TerminalLine prefix="🔄">The authentication process may take a moment to complete</TerminalLine>
+        <TerminalLine prefix="→">You may be automatically redirected to the dashboard</TerminalLine>
         <div className="mt-6">
           <TerminalButton onClick={() => navigate('/auth')}>
             back to login
+          </TerminalButton>
+          <TerminalButton onClick={() => window.location.reload()}>
+            refresh page
           </TerminalButton>
         </div>
       </Terminal>

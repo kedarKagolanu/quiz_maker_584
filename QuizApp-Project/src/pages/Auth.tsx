@@ -6,16 +6,14 @@ import { toast } from "sonner";
 import { emailSchema, passwordSchema, usernameSchema } from "@/lib/validation";
 
 export const Auth: React.FC = () => {
-  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot' | 'reset-processing'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
-  const [resetCountdown, setResetCountdown] = useState(10);
   const { login, signup, resetPassword, user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -24,38 +22,6 @@ export const Auth: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Handle password reset flow from email links
-  useEffect(() => {
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
-    const type = searchParams.get('type');
-    const error = searchParams.get('error');
-
-    if (type === 'recovery' && (accessToken && refreshToken)) {
-      console.log('🔄 Password reset detected on /auth route');
-      setAuthMode('reset-processing');
-      
-      // Show countdown and auto-redirect to reset password page
-      let countdown = 10;
-      setResetCountdown(countdown);
-      
-      const interval = setInterval(() => {
-        countdown--;
-        setResetCountdown(countdown);
-        
-        if (countdown <= 0) {
-          clearInterval(interval);
-          navigate(`/reset-password${window.location.search}`);
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
-    } else if (error) {
-      console.error('❌ Auth error from email link:', error);
-      toast.error(`Authentication error: ${error}`);
-      setAuthMode('login');
-    }
-  }, [searchParams, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +87,6 @@ export const Auth: React.FC = () => {
       case 'login': return 'login';
       case 'signup': return 'signup';
       case 'forgot': return 'password reset';
-      case 'reset-processing': return 'password reset in progress';
       default: return 'login';
     }
   };
@@ -131,7 +96,6 @@ export const Auth: React.FC = () => {
       case 'login': return 'Please login to continue';
       case 'signup': return 'Create a new account';
       case 'forgot': return resetEmailSent ? 'Check your email for reset instructions' : 'Enter your email to reset password';
-      case 'reset-processing': return 'Processing your password reset request...';
       default: return 'Please login to continue';
     }
   };
@@ -141,32 +105,7 @@ export const Auth: React.FC = () => {
       <TerminalLine>Welcome to QuizCLI - Terminal Quiz System</TerminalLine>
       <TerminalLine prefix="~">{getDescription()}</TerminalLine>
 
-      {authMode === 'reset-processing' ? (
-        <div className="mt-6">
-          <TerminalLine prefix="🔄">Password reset link detected!</TerminalLine>
-          <TerminalLine prefix="→">The link appears invalid but authentication is in progress...</TerminalLine>
-          <TerminalLine prefix="⏳">Redirecting to password reset page in {resetCountdown} seconds</TerminalLine>
-          <TerminalLine prefix="💡">If you're already logged in, you'll be redirected to the dashboard</TerminalLine>
-          
-          <div className="flex gap-4 mt-6">
-            <TerminalButton 
-              type="button" 
-              onClick={() => navigate(`/reset-password${window.location.search}`)}
-            >
-              go to reset now
-            </TerminalButton>
-            <TerminalButton 
-              type="button" 
-              onClick={() => {
-                setAuthMode('login');
-                resetForm();
-              }}
-            >
-              back to login
-            </TerminalButton>
-          </div>
-        </div>
-      ) : resetEmailSent ? (
+      {resetEmailSent ? (
         <div className="mt-6">
           <TerminalLine prefix="✓">Password reset email sent successfully!</TerminalLine>
           <TerminalLine prefix="→">Check your inbox and follow the instructions.</TerminalLine>
