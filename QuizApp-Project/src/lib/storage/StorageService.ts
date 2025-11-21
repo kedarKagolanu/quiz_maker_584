@@ -1,5 +1,5 @@
 import { IStorageDriver } from "./IStorageDriver";
-import { Quiz, QuizAttempt, User, QuizFolder } from "@/types/quiz";
+import { Quiz, QuizAttempt, User, QuizFolder, ChatGroup, ChatMessage } from "@/types/quiz";
 
 /**
  * Storage Service
@@ -304,5 +304,63 @@ export class StorageService {
       return this.driver.getFolderByAccessCode(accessCode);
     }
     return null;
+  }
+
+  // Chat operations
+  async getChatGroups(): Promise<ChatGroup[]> {
+    return this.driver.getChatGroups();
+  }
+
+  async getAllChatGroups(): Promise<ChatGroup[]> {
+    if ('getAllChatGroups' in this.driver) {
+      return (this.driver as any).getAllChatGroups();
+    }
+    return this.driver.getChatGroups(); // Fallback for LocalStorage
+  }
+
+  async saveChatGroup(group: ChatGroup): Promise<void> {
+    return this.driver.saveChatGroup(group);
+  }
+
+  async updateChatGroup(group: ChatGroup): Promise<void> {
+    return this.driver.updateChatGroup(group);
+  }
+
+  async deleteChatGroup(id: string): Promise<void> {
+    return this.driver.deleteChatGroup(id);
+  }
+
+  async getChatMessages(groupId: string): Promise<ChatMessage[]> {
+    return this.driver.getChatMessages(groupId);
+  }
+
+  async saveChatMessage(message: ChatMessage): Promise<void> {
+    return this.driver.saveChatMessage(message);
+  }
+
+  async deleteChatMessage(id: string): Promise<void> {
+    return this.driver.deleteChatMessage(id);
+  }
+
+  // Music operations
+  async getMusicFiles(): Promise<any[]> {
+    if (this.driver.getMusicFiles) {
+      return this.driver.getMusicFiles();
+    }
+    return [];
+  }
+
+  async saveMusicFile(musicFile: any, file: File): Promise<void> {
+    if (this.driver.saveMusicFile) {
+      return this.driver.saveMusicFile(musicFile, file);
+    }
+    throw new Error('Music file saving not supported by this storage driver');
+  }
+
+  async deleteMusicFile(id: string): Promise<void> {
+    if (this.driver.deleteMusicFile) {
+      return this.driver.deleteMusicFile(id);
+    }
+    throw new Error('Music file deletion not supported by this storage driver');
   }
 }

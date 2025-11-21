@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { IStorageDriver } from './IStorageDriver';
-import { Quiz, QuizAttempt, User, QuizFolder, QuizPermission, FolderPermission, EditRequest } from '@/types/quiz';
+import { Quiz, QuizAttempt, User, QuizFolder, QuizPermission, FolderPermission, EditRequest, ChatGroup, ChatMessage } from '@/types/quiz';
 
 /**
  * Supabase/PostgreSQL Storage Driver
@@ -33,10 +33,15 @@ export class SupabaseDriver implements IStorageDriver {
    * Only logs detailed errors in development mode
    */
   private handleDbError(error: any, operation: string): never {
-    if (import.meta.env.DEV) {
-      console.error(`DB ${operation} error:`, error);
-    }
-    throw new Error(`Database operation failed: ${operation}`);
+    // Always log errors for debugging
+    console.error(`🚨 DB ${operation} error:`, error);
+    console.error('Error details:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    });
+    throw new Error(`Database operation failed: ${operation} - ${error.message}`);
   }
 
   // Helper: Map DB camelCase to TypeScript camelCase (database uses camelCase)
@@ -574,5 +579,367 @@ export class SupabaseDriver implements IStorageDriver {
     if (error) this.handleDbError(error, 'fetch folder by access code');
     
     return data ? this.mapFolderFromDb(data) : null;
+  }
+
+  // Get ALL chat groups (for access code lookup)
+  async getAllChatGroups(): Promise<ChatGroup[]> {
+    try {
+      const { data: allData, error: allError } = await this.supabase
+        .from('chat_groups')
+        .select('*')
+        .order('createdAt', { ascending: false });
+      
+      if (allError) {
+        console.error('❌ Failed to fetch all chat groups:', allError);
+        throw allError;
+      }
+      
+      console.log('📊 All chat groups from database:', allData);
+      
+      const groups = (allData || []).map(this.mapChatGroupFromDb.bind(this));
+      return groups;
+      
+    } catch (error) {
+      console.error('❌ All chat groups fetch error:', error);
+      return [];
+    }
+  }
+
+  // Chat operations
+  async getChatGroups(): Promise<ChatGroup[]> {
+    if (!this.currentUserId) {
+      console.log('❌ No currentUserId for chat groups');
+      return [];
+    }
+    
+    console.log('🔍 Fetching chat groups for user:', this.currentUserId);
+    
+    try {
+      // Get current user info to check different ID formats
+      const currentUser = await this.getCurrentUser();
+      const userIdentifiers = [this.currentUserId];
+      if (currentUser?.username) {
+        userIdentifiers.push(currentUser.username);
+      }
+      
+      console.log('👤 User identifiers to check:', userIdentifiers);
+      
+      // Get all groups first and filter manually for better debugging
+      const { data: allData, error: allError } = await this.supabase
+        .from('chat_groups')
+        .select('*')
+        .order('createdAt', { ascending: false });
+      
+      if (allError) {
+        console.error('❌ Failed to fetch all chat groups:', allError);
+        throw allError;
+      }
+      
+      console.log('📊 All groups from database:', allData);
+      
+      // Filter manually to handle different ID formats
+      const filteredData = (allData || []).filter(group => {
+        // Check if user is creator
+        const isCreator = userIdentifiers.includes(group.creator);
+        
+        // Check if user is in members array
+        const isMember = group.members && userIdentifiers.some(id => 
+          group.members.includes(id)
+        );
+        
+        console.log(`🔍 Group "${group.name}":`, {
+          creator: group.creator,
+          members: group.members,
+          isCreator,
+          isMember,
+          userIds: userIdentifiers
+        });
+        
+        return isCreator || isMember;
+      });
+      
+      console.log('✅ Filtered groups for user:', filteredData);
+      
+      const groups = filteredData.map(this.mapChatGroupFromDb.bind(this));
+      console.log('✅ Final mapped chat groups:', groups);
+      
+      return groups;
+      
+    } catch (error) {
+      console.error('❌ Chat groups fetch error:', error);
+      // Don't throw here, return empty array for graceful degradation
+      return [];
+    }
+  }
+
+  async saveChatGroup(group: ChatGroup): Promise<void> {
+    try {
+      const groupData = this.mapChatGroupToDb(group);
+      console.log('💾 Attempting to save chat group:', groupData);
+      
+      // Ensure members array is properly formatted as UUID array
+      if (groupData.members && Array.isArray(groupData.members)) {
+        console.log('💾 Members array before save:', groupData.members);
+      }
+      
+      const { data, error } = await this.supabase
+        .from('chat_groups')
+        .insert(groupData)
+        .select('*');
+      
+      if (error) {
+        console.error('❌ Save chat group error:', error);
+        console.error('❌ Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+      
+      console.log('✅ Chat group saved successfully:', data);
+      
+      // Verify it was actually saved by reading it back
+      const { data: verifyData, error: verifyError } = await this.supabase
+        .from('chat_groups')
+        .select('*')
+        .eq('id', group.id)
+        .single();
+      
+      if (verifyError) {
+        console.error('❌ Failed to verify saved group:', verifyError);
+      } else {
+        console.log('✅ Verified saved group:', verifyData);
+      }
+      
+    } catch (error) {
+      console.error('❌ Chat group save failed:', error);
+      this.handleDbError(error, 'save chat group');
+    }
+  }
+
+  async updateChatGroup(group: ChatGroup): Promise<void> {
+    const { error } = await this.supabase
+      .from('chat_groups')
+      .update(this.mapChatGroupToDb(group))
+      .eq('id', group.id);
+    
+    if (error) this.handleDbError(error, 'update chat group');
+  }
+
+  async deleteChatGroup(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('chat_groups')
+      .delete()
+      .eq('id', id);
+    
+    if (error) this.handleDbError(error, 'delete chat group');
+  }
+
+  async getChatMessages(groupId: string): Promise<ChatMessage[]> {
+    const { data, error } = await this.supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('groupId', groupId)
+      .order('timestamp', { ascending: true });
+    
+    if (error) this.handleDbError(error, 'fetch chat messages');
+    
+    return (data || []).map(this.mapChatMessageFromDb);
+  }
+
+  async saveChatMessage(message: ChatMessage): Promise<void> {
+    const { error } = await this.supabase
+      .from('chat_messages')
+      .insert(this.mapChatMessageToDb(message));
+    
+    if (error) this.handleDbError(error, 'save chat message');
+  }
+
+  async deleteChatMessage(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('chat_messages')
+      .delete()
+      .eq('id', id);
+    
+    if (error) this.handleDbError(error, 'delete chat message');
+  }
+
+  private mapChatGroupFromDb(data: any): ChatGroup {
+    return {
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      creator: data.creator,
+      members: data.members,
+      createdAt: new Date(data.createdAt).getTime(),
+      isPrivate: data.isPrivate,
+      accessCode: data.accessCode,
+      type: data.type || 'group',
+    };
+  }
+
+  private mapChatGroupToDb(group: ChatGroup) {
+    return {
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      creator: group.creator,
+      members: group.members,
+      createdAt: new Date(group.createdAt).toISOString(),
+      isPrivate: group.isPrivate,
+      accessCode: group.accessCode,
+      type: group.type,
+    };
+  }
+
+  private mapChatMessageFromDb(data: any): ChatMessage {
+    return {
+      id: data.id,
+      groupId: data.groupId,
+      userId: data.userId,
+      username: data.username,
+      content: data.content,
+      type: data.type,
+      quizId: data.quizId,
+      timestamp: new Date(data.timestamp).getTime(),
+    };
+  }
+
+  private mapChatMessageToDb(message: ChatMessage) {
+    return {
+      id: message.id,
+      groupId: message.groupId,
+      userId: message.userId,
+      username: message.username,
+      content: message.content,
+      type: message.type,
+      quizId: message.quizId,
+      timestamp: new Date(message.timestamp).toISOString(),
+    };
+  }
+
+  // Music operations
+  async getMusicFiles(): Promise<any[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('music_files')
+        .select('*')
+        .order('uploadedAt', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Failed to fetch music files:', error);
+        throw error;
+      }
+      
+      return (data || []).map(file => ({
+        id: file.id,
+        title: file.title,
+        filename: file.filename,
+        uploadedBy: file.uploadedBy,
+        uploaderName: file.uploaderName,
+        showUploaderName: file.showUploaderName,
+        uploadedAt: new Date(file.uploadedAt).getTime(),
+        duration: file.duration,
+        fileSize: file.fileSize,
+        filePath: file.filePath,
+        mimeType: file.mimeType,
+        url: file.filePath // Add url property for compatibility with existing code
+      }));
+    } catch (error) {
+      console.error('❌ Music files fetch error:', error);
+      return [];
+    }
+  }
+
+  async saveMusicFile(musicFile: any, file: File): Promise<void> {
+    try {
+      // Upload file to storage bucket
+      const fileName = `${musicFile.id}-${file.name}`;
+      const { data: uploadData, error: uploadError } = await this.supabase.storage
+        .from('music-files')
+        .upload(`public/${fileName}`, file);
+
+      if (uploadError) {
+        console.error('❌ File upload error:', uploadError);
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: urlData } = this.supabase.storage
+        .from('music-files')
+        .getPublicUrl(`public/${fileName}`);
+
+      // Save metadata to database - match exact schema structure
+      const dbData = {
+        id: musicFile.id,
+        title: musicFile.title,
+        filename: musicFile.filename,
+        uploadedBy: musicFile.uploadedBy,
+        uploaderName: musicFile.uploaderName,
+        showUploaderName: musicFile.showUploaderName,
+        uploadedAt: new Date(musicFile.uploadedAt).toISOString(),
+        duration: musicFile.duration,
+        fileSize: musicFile.fileSize,
+        filePath: urlData.publicUrl, // This matches the schema column name
+        mimeType: file.type
+      };
+
+      const { error: dbError } = await this.supabase
+        .from('music_files')
+        .insert(dbData);
+
+      if (dbError) {
+        console.error('❌ Database save error:', dbError);
+        // Clean up uploaded file if database save fails
+        await this.supabase.storage
+          .from('music-files')
+          .remove([`public/${fileName}`]);
+        throw dbError;
+      }
+
+      console.log('✅ Music file saved successfully:', musicFile.title);
+    } catch (error) {
+      console.error('❌ Failed to save music file:', error);
+      throw error;
+    }
+  }
+
+  async deleteMusicFile(id: string): Promise<void> {
+    try {
+      // Get file info first
+      const { data: fileData, error: fetchError } = await this.supabase
+        .from('music_files')
+        .select('filePath')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Delete from database
+      const { error: dbError } = await this.supabase
+        .from('music_files')
+        .delete()
+        .eq('id', id);
+
+      if (dbError) throw dbError;
+
+      // Delete from storage
+      if (fileData?.filePath) {
+        const { error: storageError } = await this.supabase.storage
+          .from('music-files')
+          .remove([fileData.filePath]);
+
+        if (storageError) {
+          console.warn('⚠️ Storage file deletion failed:', storageError);
+        }
+      }
+
+      console.log('✅ Music file deleted successfully');
+    } catch (error) {
+      console.error('❌ Failed to delete music file:', error);
+      throw error;
+    }
   }
 }

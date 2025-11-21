@@ -1,148 +1,129 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX } from "lucide-react";
-
-const STUDY_TRACKS = [
-  {
-    name: "Focus Flow",
-    bpm: 120,
-    frequencies: [261.63, 293.66, 329.63, 392.00, 440.00], // C, D, E, G, A (Pentatonic)
-  },
-  {
-    name: "Deep Concentration",
-    bpm: 90,
-    frequencies: [220.00, 246.94, 293.66, 329.63, 369.99], // A, B, D, E, F#
-  },
-  {
-    name: "Quick Pace",
-    bpm: 140,
-    frequencies: [349.23, 392.00, 440.00, 493.88, 523.25], // F, G, A, B, C
-  },
-];
+import React, { useState } from "react";
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Music, Minimize2, Maximize2, X } from "lucide-react";
+import { useMusicContext } from "@/contexts/MusicContext";
+import { MusicPlayerRestore } from "./MusicPlayerRestore";
 
 export const MusicPlayer: React.FC = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState(0);
-  const [volume, setVolume] = useState(0.3);
-  const [isMuted, setIsMuted] = useState(false);
-  
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const oscillatorsRef = useRef<OscillatorNode[]>([]);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const intervalRef = useRef<number | null>(null);
+  const {
+    currentlyPlaying,
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    isMuted,
+    pauseMusic,
+    resumeMusic,
+    stopMusic,
+    seekTo,
+    skipSeconds,
+    setVolume,
+    setIsMuted,
+    musicFiles,
+    playNext,
+    playPrevious
+  } = useMusicContext();
 
-  const getAudioContext = () => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    return audioContextRef.current;
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+  const currentTrack = musicFiles.find(file => file.id === currentlyPlaying);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
-  const stopMusic = () => {
-    oscillatorsRef.current.forEach(osc => {
-      try {
-        osc.stop();
-      } catch (e) {
-        // Already stopped
-      }
-    });
-    oscillatorsRef.current = [];
-    
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  };
-
-  const playNote = (frequency: number, duration: number) => {
-    const ctx = getAudioContext();
-    const oscillator = ctx.createOscillator();
-    const gainNode = gainNodeRef.current || ctx.createGain();
-    
-    if (!gainNodeRef.current) {
-      gainNodeRef.current = gainNode;
-      gainNode.connect(ctx.destination);
-    }
-
-    oscillator.connect(gainNode);
-    oscillator.frequency.value = frequency;
-    oscillator.type = 'sine';
-    
-    gainNode.gain.value = isMuted ? 0 : volume;
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + duration);
-    
-    oscillatorsRef.current.push(oscillator);
-    
-    setTimeout(() => {
-      const index = oscillatorsRef.current.indexOf(oscillator);
-      if (index > -1) {
-        oscillatorsRef.current.splice(index, 1);
-      }
-    }, duration * 1000);
-  };
-
-  const playPattern = () => {
-    const track = STUDY_TRACKS[currentTrack];
-    const beatDuration = 60 / track.bpm;
-    
-    const playSequence = () => {
-      const freq = track.frequencies[Math.floor(Math.random() * track.frequencies.length)];
-      playNote(freq, beatDuration * 0.8);
-      
-      // Add occasional harmony
-      if (Math.random() > 0.7) {
-        const harmonyFreq = track.frequencies[Math.floor(Math.random() * track.frequencies.length)];
-        setTimeout(() => playNote(harmonyFreq * 0.5, beatDuration * 0.6), beatDuration * 250);
-      }
-    };
-
-    playSequence();
-    intervalRef.current = window.setInterval(playSequence, beatDuration * 1000);
-  };
-
-  useEffect(() => {
-    if (isPlaying) {
-      playPattern();
-    } else {
-      stopMusic();
-    }
-
-    return () => stopMusic();
-  }, [isPlaying, currentTrack]);
-
-  useEffect(() => {
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = isMuted ? 0 : volume;
-    }
-  }, [volume, isMuted]);
 
   const togglePlay = () => {
-    setIsPlaying(!isPlaying);
-  };
-
-  const nextTrack = () => {
-    setCurrentTrack((prev) => (prev + 1) % STUDY_TRACKS.length);
-  };
-
-  const prevTrack = () => {
-    setCurrentTrack((prev) => (prev - 1 + STUDY_TRACKS.length) % STUDY_TRACKS.length);
+    if (isPlaying) {
+      pauseMusic();
+    } else {
+      resumeMusic();
+    }
   };
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
   };
 
+  if (!currentTrack) {
+    return null; // Don't show player if no music is playing
+  }
+
+  if (!isVisible) {
+    return <MusicPlayerRestore onRestore={() => setIsVisible(true)} />;
+  }
+
+  // Minimized view - small box in bottom right
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-4 right-4 bg-terminal border border-terminal-accent rounded-lg shadow-lg z-40 p-3 cursor-pointer hover:bg-terminal-accent/10 transition-colors"
+           onClick={() => setIsMinimized(false)}>
+        <div className="flex items-center gap-2">
+          {isPlaying ? (
+            <Pause className="w-4 h-4 text-terminal-accent" />
+          ) : (
+            <Play className="w-4 h-4 text-terminal-accent" />
+          )}
+          <div className="text-xs text-terminal-bright truncate max-w-[120px]">
+            {currentTrack.title}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed bottom-4 right-4 bg-terminal border border-terminal-accent rounded-lg p-4 shadow-lg z-50 min-w-[280px]">
+    <div className="fixed bottom-4 right-4 bg-terminal border border-terminal-accent rounded-lg p-4 shadow-lg z-40 min-w-[320px]">
       <div className="text-terminal-foreground mb-3">
-        <div className="text-sm font-semibold text-terminal-bright">Study Music</div>
-        <div className="text-xs text-terminal-dim mt-1">{STUDY_TRACKS[currentTrack].name} ({STUDY_TRACKS[currentTrack].bpm} BPM)</div>
+        <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2 justify-between">
+          <div className="flex items-center gap-2">
+            <Music className="w-4 h-4" />
+            Now Playing
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsMinimized(true)}
+              className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
+              title="Minimize player"
+            >
+              <Minimize2 className="w-3 h-3 text-terminal-dim hover:text-terminal-foreground" />
+            </button>
+            <button
+              onClick={() => setIsVisible(false)}
+              className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
+              title="Close player"
+            >
+              <X className="w-3 h-3 text-terminal-dim hover:text-terminal-foreground" />
+            </button>
+          </div>
+        </div>
+        <div className="text-xs text-terminal-dim mt-1">{currentTrack.title}</div>
+      </div>
+      
+      {/* Progress Bar */}
+      <div className="mb-3">
+        <div className="flex justify-between text-xs text-terminal-dim mb-1">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+        <div 
+          className="w-full bg-terminal-dim/30 rounded-full h-2 cursor-pointer"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            seekTo(percent * duration);
+          }}
+        >
+          <div 
+            className="bg-terminal-accent h-2 rounded-full transition-all"
+            style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+          />
+        </div>
       </div>
       
       <div className="flex items-center gap-2 mb-3">
         <button
-          onClick={prevTrack}
+          onClick={playPrevious}
           className="p-2 hover:bg-terminal-accent/20 rounded transition-colors"
           aria-label="Previous track"
         >
@@ -162,7 +143,7 @@ export const MusicPlayer: React.FC = () => {
         </button>
         
         <button
-          onClick={nextTrack}
+          onClick={playNext}
           className="p-2 hover:bg-terminal-accent/20 rounded transition-colors"
           aria-label="Next track"
         >
@@ -184,16 +165,33 @@ export const MusicPlayer: React.FC = () => {
           <input
             type="range"
             min="0"
-            max="100"
-            value={volume * 100}
-            onChange={(e) => setVolume(parseInt(e.target.value) / 100)}
+            max="1"
+            step="0.1"
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
             className="flex-1 accent-terminal-accent"
           />
         </div>
       </div>
       
-      <div className="text-xs text-terminal-dim">
-        Generative ambient music for focus
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-terminal-dim">
+          User music library
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => skipSeconds(-10)}
+            className="text-xs text-terminal-dim hover:text-terminal-foreground transition-colors"
+          >
+            -10s
+          </button>
+          <button
+            onClick={() => skipSeconds(10)}
+            className="text-xs text-terminal-dim hover:text-terminal-foreground transition-colors"
+          >
+            +10s
+          </button>
+        </div>
       </div>
     </div>
   );

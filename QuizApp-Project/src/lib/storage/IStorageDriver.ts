@@ -1,4 +1,4 @@
-import { Quiz, QuizAttempt, User, QuizFolder, QuizPermission, FolderPermission, EditRequest } from "@/types/quiz";
+import { Quiz, QuizAttempt, User, QuizFolder, QuizPermission, FolderPermission, EditRequest, ChatGroup, ChatMessage } from "@/types/quiz";
 
 /**
  * Storage Driver Interface
@@ -55,4 +55,19 @@ export interface IStorageDriver {
   // Access code operations
   getQuizByAccessCode?(accessCode: string): Promise<Quiz | null>;
   getFolderByAccessCode?(accessCode: string): Promise<QuizFolder | null>;
+  
+  // Chat operations
+  getChatGroups(): Promise<ChatGroup[]>;
+  saveChatGroup(group: ChatGroup): Promise<void>;
+  updateChatGroup(group: ChatGroup): Promise<void>;
+  deleteChatGroup(id: string): Promise<void>;
+  
+  getChatMessages(groupId: string): Promise<ChatMessage[]>;
+  saveChatMessage(message: ChatMessage): Promise<void>;
+  deleteChatMessage(id: string): Promise<void>;
+  
+  // Music operations
+  getMusicFiles?(): Promise<any[]>;
+  saveMusicFile?(musicFile: any, file: File): Promise<void>;
+  deleteMusicFile?(id: string): Promise<void>;
 }

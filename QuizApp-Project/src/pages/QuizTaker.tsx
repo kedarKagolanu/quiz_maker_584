@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { LatexRenderer } from "@/components/LatexRenderer";
@@ -12,6 +12,7 @@ export const QuizTaker: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -39,8 +40,29 @@ export const QuizTaker: React.FC = () => {
         return;
       }
 
-      const qs = fetchedQuiz.randomize ? [...fetchedQuiz.questions].sort(() => Math.random() - 0.5) : fetchedQuiz.questions;
-      setQuiz(fetchedQuiz);
+      // Check for custom settings in URL params
+      const urlParams = new URLSearchParams(location.search);
+      const customTimeLimit = urlParams.get('timeLimit');
+      const customPerQuestionTimeLimit = urlParams.get('perQuestionTimeLimit');
+      const customRandomize = urlParams.get('randomize');
+      
+      // Apply custom settings temporarily
+      let quizWithCustomSettings = { ...fetchedQuiz };
+      if (customTimeLimit) {
+        quizWithCustomSettings.timeLimit = parseInt(customTimeLimit);
+        console.log('🎯 Applied custom time limit:', customTimeLimit);
+      }
+      if (customPerQuestionTimeLimit) {
+        quizWithCustomSettings.perQuestionTimeLimit = parseInt(customPerQuestionTimeLimit);
+        console.log('🎯 Applied custom per-question time limit:', customPerQuestionTimeLimit);
+      }
+      if (customRandomize) {
+        quizWithCustomSettings.randomize = customRandomize === 'true';
+        console.log('🎯 Applied custom randomization:', customRandomize);
+      }
+
+      const qs = quizWithCustomSettings.randomize ? [...quizWithCustomSettings.questions].sort(() => Math.random() - 0.5) : quizWithCustomSettings.questions;
+      setQuiz(quizWithCustomSettings);
       setQuestions(qs);
       setAnswers(new Array(qs.length).fill(-1));
       setTimeTaken(new Array(qs.length).fill(0));

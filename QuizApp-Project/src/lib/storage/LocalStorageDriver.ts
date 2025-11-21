@@ -1,5 +1,5 @@
 import { IStorageDriver } from "./IStorageDriver";
-import { Quiz, QuizAttempt, User, QuizFolder } from "@/types/quiz";
+import { Quiz, QuizAttempt, User, QuizFolder, ChatGroup, ChatMessage } from "@/types/quiz";
 
 /**
  * LocalStorage Driver Implementation
@@ -146,5 +146,126 @@ export class LocalStorageDriver implements IStorageDriver {
       });
       localStorage.setItem(this.STORAGE_KEYS.FOLDERS, JSON.stringify(folders));
     }
+  }
+
+  // Access code operations
+  async getQuizByAccessCode(accessCode: string): Promise<Quiz | null> {
+    const quizzes = await this.getQuizzes();
+    return quizzes.find(q => q.accessCode === accessCode) || null;
+  }
+
+  async getFolderByAccessCode(accessCode: string): Promise<QuizFolder | null> {
+    const folders = await this.getFolders();
+    return folders.find(f => f.accessCode === accessCode) || null;
+  }
+
+  // Chat operations
+  async getChatGroups(): Promise<ChatGroup[]> {
+    const stored = localStorage.getItem('quiz_chat_groups');
+    const groups = stored ? JSON.parse(stored) : [];
+    // Ensure all groups have the type field for backward compatibility
+    return groups.map((group: any) => ({
+      ...group,
+      type: group.type || 'group'
+    }));
+  }
+
+  async saveChatGroup(group: ChatGroup): Promise<void> {
+    const groups = await this.getChatGroups();
+    const existingIndex = groups.findIndex(g => g.id === group.id);
+    
+    if (existingIndex >= 0) {
+      groups[existingIndex] = group;
+    } else {
+      groups.push(group);
+    }
+    
+    localStorage.setItem('quiz_chat_groups', JSON.stringify(groups));
+  }
+
+  async updateChatGroup(group: ChatGroup): Promise<void> {
+    await this.saveChatGroup(group);
+  }
+
+  async deleteChatGroup(id: string): Promise<void> {
+    const groups = await this.getChatGroups();
+    const filtered = groups.filter(g => g.id !== id);
+    localStorage.setItem('quiz_chat_groups', JSON.stringify(filtered));
+    
+    // Also delete all messages for this group
+    const messages = await this.getChatMessages(id);
+    for (const message of messages) {
+      await this.deleteChatMessage(message.id);
+    }
+  }
+
+  async getChatMessages(groupId: string): Promise<ChatMessage[]> {
+    const stored = localStorage.getItem('quiz_chat_messages');
+    const allMessages: ChatMessage[] = stored ? JSON.parse(stored) : [];
+    return allMessages.filter(m => m.groupId === groupId);
+  }
+
+  async saveChatMessage(message: ChatMessage): Promise<void> {
+    const stored = localStorage.getItem('quiz_chat_messages');
+    const messages: ChatMessage[] = stored ? JSON.parse(stored) : [];
+    
+    const existingIndex = messages.findIndex(m => m.id === message.id);
+    if (existingIndex >= 0) {
+      messages[existingIndex] = message;
+    } else {
+      messages.push(message);
+    }
+    
+    localStorage.setItem('quiz_chat_messages', JSON.stringify(messages));
+  }
+
+  async deleteChatMessage(id: string): Promise<void> {
+    const stored = localStorage.getItem('quiz_chat_messages');
+    const messages: ChatMessage[] = stored ? JSON.parse(stored) : [];
+    const filtered = messages.filter(m => m.id !== id);
+    localStorage.setItem('quiz_chat_messages', JSON.stringify(filtered));
+  }
+
+  // Music operations
+  async getMusicFiles(): Promise<any[]> {
+    const stored = localStorage.getItem('quiz_music_files');
+    return stored ? JSON.parse(stored) : [];
+  }
+
+  async saveMusicFile(musicFile: any, file: File): Promise<void> {
+    // For local storage, we'll store the file as a data URL
+    const dataUrl = await this.fileToDataUrl(file);
+    const musicFileWithUrl = {
+      ...musicFile,
+      url: dataUrl
+    };
+
+    const stored = localStorage.getItem('quiz_music_files');
+    const musicFiles = stored ? JSON.parse(stored) : [];
+    
+    const existingIndex = musicFiles.findIndex((f: any) => f.id === musicFile.id);
+    if (existingIndex >= 0) {
+      musicFiles[existingIndex] = musicFileWithUrl;
+    } else {
+      musicFiles.push(musicFileWithUrl);
+    }
+    
+    localStorage.setItem('quiz_music_files', JSON.stringify(musicFiles));
+  }
+
+  async deleteMusicFile(id: string): Promise<void> {
+    const stored = localStorage.getItem('quiz_music_files');
+    const musicFiles = stored ? JSON.parse(stored) : [];
+    const filtered = musicFiles.filter((f: any) => f.id !== id);
+    localStorage.setItem('quiz_music_files', JSON.stringify(filtered));
+  }
+
+  private fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 }

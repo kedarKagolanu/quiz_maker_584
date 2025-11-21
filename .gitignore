@@ -15,6 +15,7 @@ dist-ssr
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+scan_file.py
 .idea
 .DS_Store
 *.suo
@@ -24,3 +25,10 @@ dist-ssr
 *.sw?
 .env
 *.md
+*.txt
+*.sql
+*.bat
+*.csv
+*.py
+*.bat
+*.sh

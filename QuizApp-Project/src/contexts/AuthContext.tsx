@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (email: string, password: string, username: string) => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   isAdmin: boolean;
 }
@@ -149,6 +150,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) {
+      return { success: false, error: "Database not configured. Please enable Lovable Cloud." };
+    }
+
+    try {
+      const redirectUrl = `${window.location.origin}/reset-password`;
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: "An unexpected error occurred" };
+    }
+  };
+
   const logout = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
@@ -158,7 +181,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, login, signup, logout, isAdmin }}>
+    <AuthContext.Provider value={{ user, session, login, signup, resetPassword, logout, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,10 +4,167 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
 import { Quiz, QuizFolder } from "@/types/quiz";
-import { ChevronRight, ChevronDown, Folder, FileText, Send, Inbox } from "lucide-react";
+import { ChevronRight, ChevronDown, Folder, FileText, Send, MessageCircle, Music } from "lucide-react";
 import { toast } from "sonner";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { MusicUploader } from "@/components/MusicUploader";
+import { useTheme } from "@/contexts/ThemeContext";
+import { PageDescription } from "@/components/PageDescription";
+
+// Theme Hammer component - Nuclear theme testing
+const ThemeHammer: React.FC = () => {
+  const { mode, preset, gradientEnabled, brightness, toggleMode, setPreset, toggleGradient, setBrightness } = useTheme();
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔨 Theme Hammer Check:', {
+        mode, preset, gradientEnabled, brightness,
+        bodyBg: window.getComputedStyle(document.body).backgroundColor,
+        cssVar: getComputedStyle(document.documentElement).getPropertyValue('--terminal-accent'),
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [mode, preset, gradientEnabled, brightness]);
+  
+  return (
+    <div className="fixed top-4 right-4 z-50 max-w-xs">
+      <div className="theme-hammer bg-black/90 border border-white/30 p-3 rounded text-white text-xs">
+        <div className="font-bold mb-2 text-yellow-300">🔨 THEME HAMMER</div>
+        <div className="space-y-2">
+          <div>
+            <button onClick={() => setPreset('terminal')} className="mr-1 px-2 py-1 bg-green-600 rounded shadow-md hover:shadow-lg transition-shadow">Terminal</button>
+            <button onClick={() => setPreset('ocean')} className="mr-1 px-2 py-1 bg-blue-600 rounded shadow-md hover:shadow-lg transition-shadow">Ocean</button>
+            <button onClick={() => setPreset('white')} className="mr-1 px-2 py-1 bg-gray-100 text-black rounded shadow-md hover:shadow-lg transition-shadow">White</button>
+            <button onClick={() => setPreset('sunset')} className="px-2 py-1 bg-orange-600 rounded shadow-md hover:shadow-lg transition-shadow">Sunset</button>
+          </div>
+          <div>
+            <button onClick={toggleMode} className="mr-1 px-2 py-1 bg-gray-600 rounded shadow-md hover:shadow-lg transition-shadow">
+              {mode === 'dark' ? 'Light' : 'Dark'}
+            </button>
+            <button onClick={toggleGradient} className="px-2 py-1 bg-purple-600 rounded shadow-md hover:shadow-lg transition-shadow">
+              Grad: {gradientEnabled ? 'ON' : 'OFF'}
+            </button>
+          </div>
+          <div className="text-xs">
+            <label className="block text-cyan-300 mb-1">Brightness: {brightness}%</label>
+            <input
+              type="range"
+              min="20"
+              max="200"
+              step="5"
+              value={brightness}
+              onChange={(e) => setBrightness(parseInt(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+        </div>
+        <div className="mt-2 text-green-300">Current: {preset}-{mode}</div>
+      </div>
+    </div>
+  );
+};
+
+// Emergency test component
+const EmergencyTest: React.FC = () => {
+  const [testResults, setTestResults] = useState<any>({});
+  
+  useEffect(() => {
+    const runTests = async () => {
+      const results: any = { timestamp: new Date().toISOString() };
+      
+      try {
+        const users = await storage.getUsers();
+        results.users = { count: users.length, success: true };
+      } catch (error: any) {
+        results.users = { success: false, error: error.message };
+      }
+      
+      try {
+        const quizzes = await storage.getQuizzes();
+        results.quizzes = { count: quizzes.length, success: true };
+      } catch (error: any) {
+        results.quizzes = { success: false, error: error.message };
+      }
+      
+      setTestResults(results);
+    };
+    
+    runTests();
+  }, []);
+  
+  return (
+    <div className="fixed bottom-4 left-4 bg-red-900 border border-red-600 p-3 rounded z-50 text-xs max-w-sm">
+      <div className="text-red-100 font-bold mb-2">🚨 Emergency Test</div>
+      <div className="space-y-1 text-red-200">
+        <div>Users: {testResults.users?.success ? `✅ ${testResults.users.count}` : `❌ ${testResults.users?.error?.substring(0, 30)}...`}</div>
+        <div>Quizzes: {testResults.quizzes?.success ? `✅ ${testResults.quizzes.count}` : `❌ ${testResults.quizzes?.error?.substring(0, 30)}...`}</div>
+      </div>
+    </div>
+  );
+};
+
+// Temporary full debug component
+const FullDebugPanel: React.FC = () => {
+  const { user } = useAuth();
+  const { mode, preset, gradientEnabled } = useTheme();
+  const [debugInfo, setDebugInfo] = useState<any>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkEverything = async () => {
+      const info: any = {
+        timestamp: new Date().toISOString(),
+        supabaseConfigured: !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY),
+        theme: { mode, preset, gradientEnabled },
+        cssVars: {
+          background: getComputedStyle(document.documentElement).getPropertyValue('--background'),
+          terminalAccent: getComputedStyle(document.documentElement).getPropertyValue('--terminal-accent'),
+        },
+        user: user ? { id: user.id, username: user.username } : null,
+        errors: []
+      };
+
+      try {
+        const users = await storage.getUsers();
+        const quizzes = await storage.getQuizzes();
+        const groups = await storage.getChatGroups?.() || [];
+        
+        info.storage = {
+          users: users.length,
+          quizzes: quizzes.length,
+          groups: groups.length
+        };
+      } catch (error: any) {
+        info.errors.push(`Storage Error: ${error.message}`);
+      }
+
+      setDebugInfo(info);
+      setIsLoading(false);
+    };
+
+    checkEverything();
+  }, [user, mode, preset, gradientEnabled]);
+
+  if (isLoading) return <div className="fixed top-4 right-4 bg-terminal border border-terminal-accent p-2 rounded z-50 text-xs text-terminal-bright">Loading...</div>;
+
+  return (
+    <div className="fixed top-4 right-4 bg-terminal border border-terminal-accent p-3 rounded z-50 text-xs max-w-md max-h-96 overflow-y-auto">
+      <div className="text-terminal-bright font-bold mb-2">🔍 Debug Panel</div>
+      <div className="space-y-1">
+        <div>Supabase: {debugInfo.supabaseConfigured ? '✅' : '❌'}</div>
+        <div>Theme: {debugInfo.theme.preset}-{debugInfo.theme.mode}</div>
+        <div>CSS Vars: {debugInfo.cssVars.terminalAccent ? '✅' : '❌'}</div>
+        <div>User: {debugInfo.user ? '✅ ' + debugInfo.user.username : '❌'}</div>
+        {debugInfo.storage && (
+          <div>Storage: {debugInfo.storage.users}u, {debugInfo.storage.quizzes}q, {debugInfo.storage.groups}g</div>
+        )}
+        {debugInfo.errors.map((e: string, i: number) => (
+          <div key={i} className="text-red-300">{e}</div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 interface FolderTree {
   folder: QuizFolder | null;
@@ -153,7 +310,8 @@ export const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}`)}>start</TerminalButton>
+                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}/customize`)}>customize & take</TerminalButton>
+                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}`)}>take now</TerminalButton>
                   <TerminalButton onClick={() => navigate(`/leaderboard/${quiz.id}`)}>leaderboard</TerminalButton>
                 </div>
               </div>
@@ -217,6 +375,10 @@ export const Dashboard: React.FC = () => {
 
   return (
     <Terminal title={`dashboard - ${user.username}`}>
+      {/* Debug components hidden - uncomment for debugging */}
+      {/* <FullDebugPanel /> */}
+      <ThemeHammer />
+      {/* <EmergencyTest /> */}
       <div className="flex items-center justify-between mb-4">
         <TerminalLine prefix="~">Welcome back, {user.username}!</TerminalLine>
         <TerminalButton onClick={() => navigate(`/profile/${user.id}`)}>
@@ -230,16 +392,18 @@ export const Dashboard: React.FC = () => {
           <div className="flex flex-wrap gap-3 mt-2 ml-6">
             <TerminalButton onClick={() => navigate("/create")}>create quiz</TerminalButton>
             <TerminalButton onClick={() => navigate("/my-quizzes")}>my quizzes ({myQuizzes.length})</TerminalButton>
-            <MusicUploader />
-            <TerminalButton onClick={() => navigate("/edit-requests")}>
-              <Inbox className="w-4 h-4 inline mr-1" />edit requests
+            <TerminalButton onClick={() => navigate("/browse-quizzes")}>
+              <FileText className="w-4 h-4 inline mr-1" />browse & take quizzes
+            </TerminalButton>
+            <TerminalButton onClick={() => navigate("/chat")}>
+              <MessageCircle className="w-4 h-4 inline mr-1" />chat groups
+            </TerminalButton>
+            <TerminalButton onClick={() => navigate("/music-library")}>
+              <Music className="w-4 h-4 inline mr-1" />music library
             </TerminalButton>
             <TerminalButton onClick={() => setShowAccessCodeInput(true)}>
               <Send className="w-4 h-4 inline mr-1" />enter access code
             </TerminalButton>
-            {isAdmin && (
-              <TerminalButton onClick={() => navigate("/admin")}>admin panel</TerminalButton>
-            )}
             <TerminalButton onClick={handleLogout}>logout</TerminalButton>
           </div>
         </div>

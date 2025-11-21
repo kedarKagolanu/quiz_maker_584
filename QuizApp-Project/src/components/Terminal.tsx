@@ -63,7 +63,7 @@ export const TerminalButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonEleme
   return (
     <button
       className={cn(
-        "px-4 py-2 bg-terminal-accent text-terminal hover:bg-terminal-accent/80 border border-terminal-accent rounded transition-colors",
+        "terminal-button px-3 py-1 border border-terminal-accent text-terminal-accent hover:bg-terminal-accent hover:text-terminal transition-colors duration-200 font-mono text-sm",
         className
       )}
       {...props}

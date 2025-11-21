@@ -112,3 +112,36 @@ export interface LeaderboardEntry {
   totalTime: number;
   completedAt: number;
 }
+
+// Chat system types
+export interface ChatGroup {
+  id: string;
+  name: string;
+  description?: string;
+  creator: string;
+  members: string[]; // user IDs
+  createdAt: number;
+  isPrivate: boolean;
+  accessCode?: string; // for joining private groups
+  type: 'group' | 'direct'; // direct for 1-on-1 chats
+}
+
+export interface ChatMessage {
+  id: string;
+  groupId: string;
+  userId: string;
+  username: string;
+  content: string;
+  type: 'text' | 'quiz_share' | 'link' | 'folder_share';
+  quizId?: string; // for quiz sharing messages or folder ID for folder shares
+  timestamp: number;
+}
+
+export interface SharedQuiz {
+  id: string;
+  quizId: string;
+  groupId: string;
+  sharedBy: string;
+  sharedAt: number;
+  message?: string;
+}

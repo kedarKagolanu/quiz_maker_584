@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    /* These will be overridden by ThemeContext - keeping as fallback */
     --background: 220 13% 9%;
     --foreground: 142 76% 73%;
     
