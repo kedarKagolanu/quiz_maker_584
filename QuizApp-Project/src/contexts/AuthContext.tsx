@@ -156,26 +156,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      // Use environment-specific redirect URL
-      const isProduction = window.location.hostname.includes('vercel.app') || 
-                          window.location.hostname !== 'localhost';
+      // Get the correct redirect URL based on current environment
+      let redirectUrl: string;
       
-      const redirectUrl = isProduction 
-        ? `https://${window.location.hostname}/reset-password`
-        : `${window.location.origin}/reset-password`;
+      if (window.location.hostname === 'localhost') {
+        redirectUrl = `http://localhost:${window.location.port}/reset-password`;
+      } else {
+        redirectUrl = `https://${window.location.hostname}/reset-password`;
+      }
       
-      console.log('🔗 Reset password redirect URL:', redirectUrl); // Debug log
+      console.log('🔗 Sending reset email with redirect URL:', redirectUrl);
+      console.log('🌐 Current location:', window.location.href);
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
+        // Add this to force the redirect URL to be used
+        options: {
+          emailRedirectTo: redirectUrl
+        }
       });
 
       if (error) {
+        console.error('❌ Reset password error:', error);
         return { success: false, error: error.message };
       }
 
+      console.log('✅ Reset password email sent successfully');
       return { success: true };
     } catch (error) {
+      console.error('❌ Reset password exception:', error);
       return { success: false, error: "An unexpected error occurred" };
     }
   };
