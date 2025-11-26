@@ -17,6 +17,8 @@ import { MyQuizzesExplorer } from "./pages/MyQuizzesExplorer";
 import { QuizPermissions } from "./pages/QuizPermissions";
 import { Chat } from "./pages/Chat";
 import { QuizCustomizer } from "./pages/QuizCustomizer";
+import { QuizCustomizerAdvanced } from "./pages/QuizCustomizerAdvanced";
+import UnifiedQuizAdvanced from "./pages/UnifiedQuizAdvanced";
 import { QuizBrowser } from "./pages/QuizBrowser";
 import { MusicLibrary } from "./pages/MusicLibrary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -52,6 +54,9 @@ const App = () => (
             <Route path="/browse-quizzes" element={<ProtectedRoute><QuizBrowser /></ProtectedRoute>} />
             <Route path="/music-library" element={<ProtectedRoute><MusicLibrary /></ProtectedRoute>} />
             <Route path="/quiz/:id/customize" element={<ProtectedRoute><QuizCustomizer /></ProtectedRoute>} />
+            <Route path="/quiz/:id/customize-advanced" element={<ProtectedRoute><QuizCustomizerAdvanced /></ProtectedRoute>} />
+            <Route path="/quiz/:quizId/advanced" element={<ProtectedRoute><UnifiedQuizAdvanced /></ProtectedRoute>} />
+            <Route path="/advanced" element={<ProtectedRoute><UnifiedQuizAdvanced /></ProtectedRoute>} />
             <Route path="/quiz/:id/take" element={<ProtectedRoute><QuizTaker /></ProtectedRoute>} />
             <Route path="/profile/:username?" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/quiz/:id" element={<ProtectedRoute><QuizTaker /></ProtectedRoute>} />

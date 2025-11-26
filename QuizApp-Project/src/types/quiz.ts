@@ -9,6 +9,7 @@ export interface MediaItem {
   type: 'image' | 'audio';
   data: string; // base64 data
   name: string;
+  size?: 'small' | 'medium' | 'large' | 'xlarge'; // individual image size
 }
 
 export type ResourceRole = 'creator' | 'admin' | 'editor' | 'viewer';
@@ -33,6 +34,29 @@ export interface Quiz {
   forkedFrom?: string; // original quiz ID if this is a fork
   accessCode?: string; // unique code to access public quiz
   editMode?: EditMode; // whether edits are accepted
+  questionLimit?: number; // limit number of questions from this quiz when randomizing
+  customQuizSources?: CustomQuizSource[]; // for multi-quiz compositions
+  imageSize?: 'small' | 'medium' | 'large' | 'xlarge'; // size of images in quiz
+  multiQuizSources?: {
+    sources: Array<{
+      quizId: string;
+      minQuestions: number;
+      maxQuestions: number;
+      fixedCount: boolean;
+      sectionName?: string; // Custom name for this section (defaults to quiz title)
+    }>;
+    metadata?: {
+      sources: Array<{
+        sourceQuizId: string;
+        sourceTitle: string;
+        questionCount: number;
+      }>;
+      generatedAt: number;
+      totalQuestions: number;
+    };
+    hasManualQuestions: boolean;
+    preserveQuizOrder?: boolean; // NEW: keep questions in quiz groups vs fully random
+  }; // for multi-quiz mode metadata
 }
 
 export interface QuizFolder {
@@ -45,6 +69,9 @@ export interface QuizFolder {
   sharedWith?: string[]; // user IDs who can access this folder
   accessCode?: string; // unique code to access public folder
   editMode?: EditMode; // whether edits are accepted
+  totalQuizzes?: number; // computed: total quizzes in this folder and subfolders
+  directQuizzes?: number; // computed: quizzes directly in this folder
+  totalFolders?: number; // computed: total subfolders count
 }
 
 export interface QuizPermission {
@@ -103,6 +130,13 @@ export interface User {
   musicFiles?: MusicFile[];
   bookmarkedQuizzes?: string[]; // quiz IDs
   bookmarkedFolders?: string[]; // folder IDs
+}
+
+export interface CustomQuizSource {
+  quizId: string;
+  minQuestions: number;
+  maxQuestions: number;
+  fixedCount?: boolean; // if true, must get exact number between min-max
 }
 
 export interface LeaderboardEntry {

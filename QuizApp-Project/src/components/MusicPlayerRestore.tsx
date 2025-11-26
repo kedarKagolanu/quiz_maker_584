@@ -16,7 +16,13 @@ export const MusicPlayerRestore: React.FC<MusicPlayerRestoreProps> = ({ onRestor
 
   return (
     <div 
-      className="fixed bottom-4 left-4 bg-terminal border border-terminal-accent rounded-lg shadow-lg z-30 p-2 cursor-pointer hover:bg-terminal-accent/10 transition-colors"
+      className="bg-terminal border border-terminal-accent rounded-lg shadow-lg p-2 cursor-pointer hover:bg-terminal-accent/10 transition-colors"
+      style={{
+        position: 'fixed',
+        bottom: 16,
+        left: 16,
+        zIndex: 30
+      }}
       onClick={onRestore}
       title="Show music player"
     >

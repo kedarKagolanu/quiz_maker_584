@@ -258,7 +258,10 @@ const injectThemeStyles = (preset: string, mode: string, gradientEnabled: boolea
   document.documentElement.setAttribute('data-theme-mode', mode);
   document.documentElement.setAttribute('data-gradient', gradientEnabled.toString());
   
-  console.log('🎨🔥 FORCE THEME INJECTED:', { preset, mode, gradientEnabled, timestamp: Date.now() });
+  // Only log theme injection in development mode
+  if (import.meta.env.DEV) {
+    console.log('🎨 Theme applied:', { preset, mode, gradientEnabled });
+  }
 };
 
 export type ThemeMode = 'dark' | 'light';
@@ -433,13 +436,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('theme-gradient', String(gradientEnabled));
     localStorage.setItem('theme-brightness', String(brightness));
     
-    // Force a re-render after a short delay
-    setTimeout(() => {
-      // Trigger a style recalculation
-      document.body.style.display = 'none';
-      document.body.offsetHeight; // Force reflow
-      document.body.style.display = '';
-    }, 100);
+    // Removed forced reflow - causes performance issues
+    // Theme changes are applied immediately via CSS injection
     
   }, [mode, preset, gradientEnabled, brightness]);
 

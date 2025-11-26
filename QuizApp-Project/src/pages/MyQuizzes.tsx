@@ -300,6 +300,9 @@ export const MyQuizzes: React.FC = () => {
                 <TerminalButton onClick={() => navigate(`/create-quiz?edit=${quiz.id}`)}>
                   <Edit className="w-4 h-4 inline mr-1" />edit
                 </TerminalButton>
+                <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}/advanced?mode=edit`)}>
+                  🔧 advanced
+                </TerminalButton>
                 <TerminalButton onClick={() => handleCopyJSON(quiz)}>
                   <Copy className="w-4 h-4 inline mr-1" />copy JSON
                 </TerminalButton>

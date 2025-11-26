@@ -22,19 +22,29 @@ import { SupabaseDriver } from "./SupabaseDriver";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-let driver;
-if (supabaseUrl && supabaseAnonKey) {
-  // Only log in development mode for security
-  if (import.meta.env.DEV) {
-    console.log("Using Supabase/PostgreSQL storage driver");
+// Singleton pattern to prevent multiple driver instances
+let driverInstance: any = null;
+
+function createDriver() {
+  if (driverInstance) return driverInstance;
+  
+  if (supabaseUrl && supabaseAnonKey) {
+    // Only log in development mode for security
+    if (import.meta.env.DEV) {
+      console.log("📦 Initializing Supabase storage driver");
+    }
+    driverInstance = new SupabaseDriver(supabaseUrl, supabaseAnonKey);
+  } else {
+    if (import.meta.env.DEV) {
+      console.log("📦 Initializing localStorage storage driver");
+    }
+    driverInstance = new LocalStorageDriver();
   }
-  driver = new SupabaseDriver(supabaseUrl, supabaseAnonKey);
-} else {
-  if (import.meta.env.DEV) {
-    console.log("Using localStorage storage driver (no database configured)");
-  }
-  driver = new LocalStorageDriver();
+  
+  return driverInstance;
 }
+
+const driver = createDriver();
 
 export const storage = new StorageService(driver);
 

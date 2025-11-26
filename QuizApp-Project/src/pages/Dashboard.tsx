@@ -15,15 +15,11 @@ import { PageDescription } from "@/components/PageDescription";
 const ThemeHammer: React.FC = () => {
   const { mode, preset, gradientEnabled, brightness, toggleMode, setPreset, toggleGradient, setBrightness } = useTheme();
   
+  // Removed excessive logging - only log on changes, not every 2 seconds
   useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('🔨 Theme Hammer Check:', {
-        mode, preset, gradientEnabled, brightness,
-        bodyBg: window.getComputedStyle(document.body).backgroundColor,
-        cssVar: getComputedStyle(document.documentElement).getPropertyValue('--terminal-accent'),
-      });
-    }, 2000);
-    return () => clearInterval(interval);
+    if (import.meta.env.DEV) {
+      console.log('🔨 Theme Changed:', { mode, preset, gradientEnabled, brightness });
+    }
   }, [mode, preset, gradientEnabled, brightness]);
   
   return (
@@ -195,18 +191,40 @@ export const Dashboard: React.FC = () => {
       // User's own quizzes
       setMyQuizzes(allQuizzes.filter((q) => q.creator === user.id));
       
-      // Get all accessible quizzes (user's own + public quizzes + shared quizzes)
+      // Get all accessible quizzes (public + user's own + shared quizzes + access code quizzes)
       const accessibleQuizzes = allQuizzes.filter(
         (q) => q.isPublic || q.creator === user.id || q.sharedWith?.includes(user.id)
       );
       
-      // Get all accessible folders (user's own + public folders + shared folders)
+      // Get all accessible folders (public + user's own + shared folders + access code folders)
       const accessibleFolders = allFolders.filter(
         (f) => f.isPublic || f.creator === user.id || f.sharedWith?.includes(user.id)
       );
+
+      // Calculate folder statistics
+      const foldersWithStats = accessibleFolders.map(folder => {
+        const folderPath = getFullPath(folder);
+        const directQuizzes = accessibleQuizzes.filter(q => q.folderPath === folderPath).length;
+        const subFolders = accessibleFolders.filter(f => f.parentPath === folderPath).length;
+        
+        // Calculate total quizzes recursively
+        const calculateTotalQuizzes = (path: string): number => {
+          const direct = accessibleQuizzes.filter(q => q.folderPath === path).length;
+          const subFolderPaths = accessibleFolders.filter(f => f.parentPath === path).map(f => getFullPath(f));
+          const subTotal = subFolderPaths.reduce((sum, subPath) => sum + calculateTotalQuizzes(subPath), 0);
+          return direct + subTotal;
+        };
+
+        return {
+          ...folder,
+          directQuizzes,
+          totalQuizzes: calculateTotalQuizzes(folderPath),
+          totalFolders: subFolders
+        };
+      });
       
       // Build hierarchical folder tree with quizzes properly organized
-      const tree = buildFolderTree(accessibleQuizzes, accessibleFolders);
+      const tree = buildFolderTree(accessibleQuizzes, foldersWithStats);
       setAvailableFolderTree(tree);
       
       const userAttempts = await storage.getUserAttempts(user.id);
@@ -216,10 +234,10 @@ export const Dashboard: React.FC = () => {
   }, [user, navigate]);
 
   const buildFolderTree = (quizzes: Quiz[], folders: QuizFolder[]): FolderTree => {
-    // Root level - quizzes without folder path
+    // Root level - quizzes without folder path (independent quizzes only)
     const rootQuizzes = quizzes.filter(q => !q.folderPath || q.folderPath === '');
     
-    // Root level folders - folders without parent path
+    // Root level folders - folders without parent path (root folders only)
     const rootFolders = folders.filter(f => !f.parentPath || f.parentPath === '');
     
     // Recursively build subfolder tree
@@ -286,7 +304,8 @@ export const Dashboard: React.FC = () => {
             <Folder className="w-4 h-4 text-terminal-accent" />
             <span className="text-terminal-bright">{tree.folder.name}</span>
             <span className="text-xs text-terminal-dim">
-              ({tree.quizzes.length} quiz{tree.quizzes.length !== 1 ? 'zes' : ''})
+              ({tree.folder?.totalQuizzes || tree.quizzes.length} quiz{(tree.folder?.totalQuizzes || tree.quizzes.length) !== 1 ? 'zes' : ''}
+              {tree.folder?.totalFolders ? `, ${tree.folder.totalFolders} folder${tree.folder.totalFolders !== 1 ? 's' : ''}` : ''})
             </span>
           </div>
         )}
@@ -381,7 +400,7 @@ export const Dashboard: React.FC = () => {
       {/* <EmergencyTest /> */}
       <div className="flex items-center justify-between mb-4">
         <TerminalLine prefix="~">Welcome back, {user.username}!</TerminalLine>
-        <TerminalButton onClick={() => navigate(`/profile/${user.id}`)}>
+        <TerminalButton onClick={() => navigate(`/profile/${user.username}`)}>
           view profile
         </TerminalButton>
       </div>

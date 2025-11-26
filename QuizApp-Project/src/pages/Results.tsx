@@ -18,7 +18,34 @@ export const Results: React.FC = () => {
       const foundAttempt = attempts.find((a) => a.id === id);
       if (foundAttempt) {
         setAttempt(foundAttempt);
-        const quizData = await storage.getQuizById(foundAttempt.quizId);
+        let quizData = await storage.getQuizById(foundAttempt.quizId);
+        
+        // For multi-quiz, we need to regenerate the questions to match the attempt
+        if (quizData && quizData.multiQuizSources && foundAttempt.answers.length !== quizData.questions.length) {
+          console.log('🔄 Multi-quiz detected - attempt has different question count than stored quiz');
+          console.log(`Attempt answers: ${foundAttempt.answers.length}, Stored questions: ${quizData.questions.length}`);
+          
+          // Try to get the questions from localStorage if available (recent attempt)
+          const attemptKey = `quiz_attempt_${foundAttempt.id}_questions`;
+          const storedQuestions = localStorage.getItem(attemptKey);
+          
+          if (storedQuestions) {
+            try {
+              const parsedQuestions = JSON.parse(storedQuestions);
+              console.log('✅ Found stored questions from attempt:', parsedQuestions.length);
+              quizData = {
+                ...quizData,
+                questions: parsedQuestions.questions || parsedQuestions,
+                media: parsedQuestions.media || quizData.media
+              };
+            } catch (error) {
+              console.error('❌ Failed to parse stored questions:', error);
+            }
+          } else {
+            console.warn('⚠️ No stored questions found for multi-quiz attempt - using original quiz structure');
+          }
+        }
+        
         setQuiz(quizData);
         
         // Play sound based on score
@@ -44,7 +71,8 @@ export const Results: React.FC = () => {
 
   // Map answers back to original question order if quiz was randomized
   const correctAnswers = attempt.answers.reduce((acc, ans, idx) => {
-    return acc + (ans === quiz.questions[idx]?.a ? 1 : 0);
+    const question = quiz.questions[idx];
+    return acc + (question && ans === question.a ? 1 : 0);
   }, 0);
 
   const formatTime = (seconds: number) => {
@@ -77,29 +105,56 @@ export const Results: React.FC = () => {
         <div>
           <TerminalLine prefix="#">Question Breakdown</TerminalLine>
           <div className="ml-6 mt-2 space-y-3">
-            {quiz.questions.map((q, idx) => {
-              const userAnswer = attempt.answers[idx];
-              const isCorrect = userAnswer === q.a;
-              const timeTaken = attempt.timeTaken[idx];
+            {attempt.answers.map((userAnswer, idx) => {
+              // Get the question from the quiz, handling potential index mismatches
+              const question = quiz.questions[idx];
+              
+              // Skip if no question exists at this index
+              if (!question) {
+                console.warn(`No question found at index ${idx}`);
+                return null;
+              }
+
+              // Skip invalid questions (like multi-quiz config placeholders)
+              if (!question.q || !question.o || typeof question.a === 'undefined') {
+                console.warn(`Invalid question structure at index ${idx}:`, question);
+                return null;
+              }
+
+              const isCorrect = userAnswer === question.a;
+              const timeTaken = attempt.timeTaken[idx] || 0;
 
               return (
                 <div key={idx} className="border border-terminal-accent/30 p-3 rounded">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-terminal-bright">
-                      Q{idx + 1}: <LatexRenderer text={q.q} media={quiz.media} />
+                      Q{idx + 1}: <LatexRenderer text={question.q || ''} media={quiz.media || []} />
                     </span>
                     <span className={isCorrect ? "text-terminal-accent" : "text-destructive"}>
                       {isCorrect ? "✓" : "✗"}
                     </span>
                   </div>
                   <div className="text-sm space-y-1 text-terminal-dim">
-                    <div>Your answer: {userAnswer >= 0 ? <LatexRenderer text={q.o[userAnswer]} media={quiz.media} /> : "No answer"}</div>
-                    {!isCorrect && <div>Correct answer: <LatexRenderer text={q.o[q.a]} media={quiz.media} /></div>}
+                    <div>
+                      Your answer: {userAnswer >= 0 && userAnswer < question.o.length && question.o[userAnswer] ? 
+                        <span>
+                          {String.fromCharCode(65 + userAnswer)}. <LatexRenderer text={question.o[userAnswer]} media={quiz.media || []} />
+                        </span> : 
+                        "No answer"
+                      }
+                    </div>
+                    {!isCorrect && question.a >= 0 && question.a < question.o.length && question.o[question.a] && (
+                      <div>
+                        Correct answer: <span>
+                          {String.fromCharCode(65 + question.a)}. <LatexRenderer text={question.o[question.a]} media={quiz.media || []} />
+                        </span>
+                      </div>
+                    )}
                     <div>Time taken: {timeTaken}s</div>
                   </div>
                 </div>
               );
-            })}
+            }).filter(Boolean)}
           </div>
         </div>
 

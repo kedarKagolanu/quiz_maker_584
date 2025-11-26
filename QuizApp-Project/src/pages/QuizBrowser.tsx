@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
 import { Quiz, QuizFolder, QuizAttempt } from "@/types/quiz";
-import { FileText, Folder, Lock, Globe, Clock, User, Play, Filter } from "lucide-react";
+import { FileText, Folder, Lock, Globe, Clock, User, Play, Filter, Settings } from "lucide-react";
 import { PageDescription } from "@/components/PageDescription";
 import { toast } from "sonner";
 
@@ -19,6 +19,8 @@ export const QuizBrowser: React.FC = () => {
   const [filteredQuizzes, setFilteredQuizzes] = useState<Quiz[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [currentFolderPath, setCurrentFolderPath] = useState<string>("");
+  const [folderContents, setFolderContents] = useState<{quizzes: Quiz[], subfolders: QuizFolder[]}>({quizzes: [], subfolders: []});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,7 +85,19 @@ export const QuizBrowser: React.FC = () => {
       case 'folder':
         if (selectedFolder) {
           const folderPath = getFolderPath(selectedFolder);
-          filtered = quizzes.filter(q => q.folderPath === folderPath);
+          setCurrentFolderPath(folderPath);
+          // Get both quizzes and subfolders for this folder
+          const folderQuizzes = quizzes.filter(q => q.folderPath === folderPath);
+          const subfolders = folders.filter(f => f.parentPath === folderPath);
+          setFolderContents({quizzes: folderQuizzes, subfolders});
+          filtered = folderQuizzes;
+        } else {
+          // Show independent quizzes (no folder path)
+          setCurrentFolderPath("");
+          const independentQuizzes = quizzes.filter(q => !q.folderPath || q.folderPath === '');
+          const rootFolders = folders.filter(f => !f.parentPath || f.parentPath === '');
+          setFolderContents({quizzes: independentQuizzes, subfolders: rootFolders});
+          filtered = independentQuizzes;
         }
         break;
       
@@ -97,6 +111,28 @@ export const QuizBrowser: React.FC = () => {
     }
 
     setFilteredQuizzes(filtered);
+  };
+
+  const handleFolderClick = (folder: QuizFolder) => {
+    setActiveFilter('folder');
+    setSelectedFolder(folder.id);
+  };
+
+  const navigateToParentFolder = () => {
+    if (currentFolderPath) {
+      const parentPath = currentFolderPath.includes('/') 
+        ? currentFolderPath.split('/').slice(0, -1).join('/')
+        : '';
+      
+      if (parentPath) {
+        const parentFolder = folders.find(f => getFolderPath(f.id) === parentPath);
+        if (parentFolder) {
+          setSelectedFolder(parentFolder.id);
+        }
+      } else {
+        setSelectedFolder(null);
+      }
+    }
   };
 
   const getFolderPath = (folderId: string): string => {
@@ -135,9 +171,10 @@ export const QuizBrowser: React.FC = () => {
     return `${seconds}s`;
   };
 
-  const handleQuizClick = (quiz: Quiz) => {
+  const handleQuizClick = (quiz: Quiz, advanced: boolean = false) => {
     // Go to customizer first, then to quiz
-    navigate(`/quiz/${quiz.id}/customize`);
+    const path = advanced ? `/quiz/${quiz.id}/customize-advanced` : `/quiz/${quiz.id}/customize`;
+    navigate(path);
   };
 
   if (loading) {
@@ -198,11 +235,11 @@ export const QuizBrowser: React.FC = () => {
               </TerminalButton>
             </div>
 
-            {/* Folder Filter */}
-            {folders.length > 0 && (
+            {/* Root Folder Filter - Show only root folders */}
+            {folders.filter(f => !f.parentPath || f.parentPath === '').length > 0 && (
               <div>
                 <TerminalLine prefix=">" className="text-terminal-accent mb-2">
-                  Filter by Folder:
+                  Browse Root Folders:
                 </TerminalLine>
                 <div className="ml-6 flex flex-wrap gap-2">
                   <TerminalButton
@@ -212,10 +249,10 @@ export const QuizBrowser: React.FC = () => {
                     }}
                     className={activeFilter === 'folder' && !selectedFolder ? 'bg-terminal-accent/20' : ''}
                   >
-                    No Folder
+                    Independent Quizzes
                   </TerminalButton>
                   
-                  {folders.map(folder => (
+                  {folders.filter(f => !f.parentPath || f.parentPath === '').map(folder => (
                     <TerminalButton
                       key={folder.id}
                       onClick={() => {
@@ -225,9 +262,13 @@ export const QuizBrowser: React.FC = () => {
                       className={activeFilter === 'folder' && selectedFolder === folder.id ? 'bg-terminal-accent/20' : ''}
                     >
                       <Folder className="w-4 h-4 mr-1" />
-                      {folder.name}
+                      {folder.name} ({folder.totalQuizzes || 0} quiz{(folder.totalQuizzes || 0) !== 1 ? 'zes' : ''}
+                      {folder.totalFolders ? `, ${folder.totalFolders} folder${folder.totalFolders !== 1 ? 's' : ''}` : ''})
                     </TerminalButton>
                   ))}
+                </div>
+                <div className="ml-6 text-xs text-terminal-dim mt-2">
+                  Note: Click a folder to see its contents. Only root-level folders and independent quizzes are shown here.
                 </div>
               </div>
             )}
@@ -236,14 +277,66 @@ export const QuizBrowser: React.FC = () => {
 
         {/* Results */}
         <div>
-          <TerminalLine prefix="#" className="mb-3">
-            Results ({filteredQuizzes.length} quiz{filteredQuizzes.length !== 1 ? 'es' : ''})
-          </TerminalLine>
+          <div className="flex items-center gap-3 mb-3">
+            <TerminalLine prefix="#">
+              {activeFilter === 'folder' ? 
+                `Browsing: ${currentFolderPath || 'Root'}` : 
+                `Results (${filteredQuizzes.length} quiz${filteredQuizzes.length !== 1 ? 'es' : ''})`
+              }
+            </TerminalLine>
+            
+            {activeFilter === 'folder' && currentFolderPath && (
+              <TerminalButton 
+                onClick={navigateToParentFolder}
+                className="text-xs bg-gray-600/20 hover:bg-gray-600/30"
+              >
+                ↰ Parent Folder
+              </TerminalButton>
+            )}
+          </div>
 
           <div className="ml-6 space-y-3">
-            {filteredQuizzes.length === 0 ? (
+            {/* Show folders when browsing */}
+            {activeFilter === 'folder' && folderContents.subfolders.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2">
+                  <Folder className="w-4 h-4" />
+                  Folders ({folderContents.subfolders.length})
+                </div>
+                {folderContents.subfolders.map(folder => (
+                  <div
+                    key={folder.id}
+                    onClick={() => handleFolderClick(folder)}
+                    className="p-3 border border-blue-500/30 rounded cursor-pointer hover:border-blue-500/60 transition-colors bg-blue-500/5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Folder className="w-4 h-4 text-blue-400" />
+                      <span className="text-terminal-bright font-semibold">{folder.name}</span>
+                      <span className="text-xs text-terminal-dim">
+                        ({folder.totalQuizzes || 0} quiz{(folder.totalQuizzes || 0) !== 1 ? 'es' : ''})
+                      </span>
+                    </div>
+                    {folder.description && (
+                      <p className="text-terminal-foreground text-sm mt-1 ml-6">{folder.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Show quizzes */}
+            {filteredQuizzes.length > 0 && activeFilter === 'folder' && (
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Quizzes ({filteredQuizzes.length})
+                </div>
+              </div>
+            )}
+            
+            {filteredQuizzes.length === 0 && (activeFilter !== 'folder' || folderContents.subfolders.length === 0) ? (
               <TerminalLine prefix="-" className="text-terminal-dim">
-                No quizzes found with current filter
+                No {activeFilter === 'folder' ? 'content' : 'quizzes'} found with current filter
               </TerminalLine>
             ) : (
               filteredQuizzes.map(quiz => {
@@ -252,7 +345,7 @@ export const QuizBrowser: React.FC = () => {
                 return (
                   <div
                     key={quiz.id}
-                    onClick={() => handleQuizClick(quiz)}
+                    onClick={() => handleQuizClick(quiz, false)}
                     className="p-4 border border-terminal-accent/30 rounded cursor-pointer hover:border-terminal-accent/60 transition-colors"
                   >
                     <div className="flex items-start justify-between">
@@ -309,12 +402,22 @@ export const QuizBrowser: React.FC = () => {
                         <TerminalButton
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleQuizClick(quiz);
+                            handleQuizClick(quiz, false);
                           }}
                           className="text-xs"
                         >
                           <Play className="w-3 h-3 mr-1" />
-                          Customize & Take
+                          Quick Start
+                        </TerminalButton>
+                        <TerminalButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuizClick(quiz, true);
+                          }}
+                          className="text-xs bg-terminal-accent/20 hover:bg-terminal-accent/30"
+                        >
+                          <Settings className="w-3 h-3 mr-1" />
+                          Advanced
                         </TerminalButton>
                       </div>
                     </div>

@@ -83,11 +83,28 @@ export class SupabaseDriver implements IStorageDriver {
       sharedWith: dbQuiz.sharedWith || [],
       forkedFrom: dbQuiz.forkedFrom,
       accessCode: dbQuiz.accessCode,
-      editMode: dbQuiz.editMode || 'no_edits'
+      editMode: dbQuiz.editMode || 'no_edits',
+      multiQuizSources: dbQuiz.multi_quiz_sources, // Map the database column
+      questionLimit: dbQuiz.questionLimit || undefined,
+      imageSize: dbQuiz.imageSize || 'medium'
     };
   }
 
   private mapQuizToDb(quiz: Quiz): any {
+    // Ensure only one time limit type is set (database constraint)
+    let timeLimit = quiz.timeLimit || null;
+    let perQuestionTimeLimit = quiz.perQuestionTimeLimit || null;
+    
+    // If both are set, prioritize perQuestionTimeLimit (more specific)
+    if (timeLimit && perQuestionTimeLimit) {
+      console.warn('⚠️ Both timeLimit and perQuestionTimeLimit set, clearing timeLimit');
+      timeLimit = null;
+    }
+    
+    // Convert empty strings to null for database
+    if (timeLimit === "" || timeLimit === 0) timeLimit = null;
+    if (perQuestionTimeLimit === "" || perQuestionTimeLimit === 0) perQuestionTimeLimit = null;
+    
     return {
       id: quiz.id,
       title: quiz.title,
@@ -96,8 +113,8 @@ export class SupabaseDriver implements IStorageDriver {
       creator: quiz.creator,
       createdAt: quiz.createdAt,
       isPublic: quiz.isPublic,
-      timeLimit: quiz.timeLimit,
-      perQuestionTimeLimit: quiz.perQuestionTimeLimit,
+      timeLimit: timeLimit,
+      perQuestionTimeLimit: perQuestionTimeLimit,
       randomize: quiz.randomize,
       media: quiz.media || [],
       layout: quiz.layout || 'default',
@@ -105,7 +122,10 @@ export class SupabaseDriver implements IStorageDriver {
       sharedWith: quiz.sharedWith || [],
       forkedFrom: quiz.forkedFrom,
       accessCode: quiz.accessCode,
-      editMode: quiz.editMode || 'no_edits'
+      editMode: quiz.editMode || 'no_edits',
+      multi_quiz_sources: quiz.multiQuizSources, // Map to database column name
+      questionLimit: quiz.questionLimit || null,
+      imageSize: quiz.imageSize || 'medium'
     };
   }
 

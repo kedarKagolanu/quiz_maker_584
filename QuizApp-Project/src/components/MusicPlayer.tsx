@@ -56,8 +56,15 @@ export const MusicPlayer: React.FC = () => {
   // Minimized view - small box in bottom right
   if (isMinimized) {
     return (
-      <div className="fixed bottom-4 right-4 bg-terminal border border-terminal-accent rounded-lg shadow-lg z-40 p-3 cursor-pointer hover:bg-terminal-accent/10 transition-colors"
-           onClick={() => setIsMinimized(false)}>
+      <div 
+        className="bg-terminal border border-terminal-accent rounded-lg shadow-lg p-3 cursor-pointer hover:bg-terminal-accent/10 transition-colors"
+        style={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          zIndex: 40
+        }}
+        onClick={() => setIsMinimized(false)}>
         <div className="flex items-center gap-2">
           {isPlaying ? (
             <Pause className="w-4 h-4 text-terminal-accent" />
@@ -73,7 +80,14 @@ export const MusicPlayer: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 bg-terminal border border-terminal-accent rounded-lg p-4 shadow-lg z-40 min-w-[320px]">
+    <div 
+      className="bg-terminal border border-terminal-accent rounded-lg p-4 shadow-lg min-w-[320px]"
+      style={{
+        position: 'fixed',
+        bottom: 16,
+        right: 16,
+        zIndex: 40
+      }}>
       <div className="text-terminal-foreground mb-3">
         <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2 justify-between">
           <div className="flex items-center gap-2">
