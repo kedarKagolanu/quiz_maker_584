@@ -46,12 +46,21 @@ export const QuizCustomizer: React.FC = () => {
     if (!user) return;
     
     try {
+      const allQuizzes = await storage.getQuizzes();
       const allFolders = await storage.getFolders();
-      const userFolders = allFolders.filter((f) => f.creator === user.id);
-      setFolders(userFolders);
       
-      const userQuizzes = await storage.getUserQuizzes(user.id);
-      setAvailableQuizzes(userQuizzes.filter(q => q.id !== id)); // Exclude current quiz
+      // Get all accessible quizzes (public + user's own + shared quizzes) - exactly like Dashboard
+      const accessibleQuizzes = allQuizzes.filter(
+        (q) => (q.isPublic || q.creator === user.id || q.sharedWith?.includes(user.id)) && q.id !== id
+      ); // Exclude current quiz being customized
+      
+      // Get all accessible folders (public + user's own + shared folders) - exactly like Dashboard
+      const accessibleFolders = allFolders.filter(
+        (f) => f.isPublic || f.creator === user.id || f.sharedWith?.includes(user.id)
+      );
+      
+      setAvailableQuizzes(accessibleQuizzes);
+      setFolders(accessibleFolders);
       
       multiQuizActions.setCurrentFolder('');
     } catch (error) {

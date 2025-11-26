@@ -742,23 +742,20 @@ export const QuizTaker: React.FC = () => {
         </div>
         
         <div className={`text-xs space-y-2 mt-4 pt-3 border-t border-terminal-accent/30 ${navPosition === 'bottom' ? 'flex gap-6' : ''}`}>
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 bg-gradient-to-br from-gray-500 to-gray-700 border-2 border-gray-300 rounded shadow-md"></div>
-            <div className="w-3 h-3 rounded border border-gray-400 bg-gray-500 inline-block mr-2"></div>
+          <div className="quiz-legend-item">
+            <div className="quiz-legend-color" data-color="gray"></div>
             <span className="text-gray-300 font-medium">Not Visited</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-orange-200 rounded shadow-md"></div>
+          <div className="quiz-legend-item">
+            <div className="quiz-legend-color" data-color="orange"></div>
             <span className="text-orange-300 font-medium">Seen</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 bg-gradient-to-br from-green-400 to-green-600 border-2 border-green-200 rounded shadow-md"></div>
-            <div className="w-3 h-3 rounded border border-green-400 bg-green-500 inline-block mr-2"></div>
+          <div className="quiz-legend-item">
+            <div className="quiz-legend-color" data-color="green"></div>
             <span className="text-green-300 font-medium">Attempted</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 bg-gradient-to-br from-yellow-300 to-yellow-500 border-2 border-yellow-200 rounded shadow-md"></div>
-            <div className="w-3 h-3 rounded border border-yellow-400 bg-yellow-500 inline-block mr-2"></div>
+          <div className="quiz-legend-item">
+            <div className="quiz-legend-color" data-color="yellow"></div>
             <span className="text-yellow-300 font-medium">Marked for Review</span>
           </div>
           {hasPerQuestionTimer && (
