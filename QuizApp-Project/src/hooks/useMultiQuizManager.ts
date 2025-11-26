@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Quiz } from '@/types/quiz';
+import { getRecursiveQuestionCount, validateRecursiveQuizSource } from '@/lib/recursiveQuizResolver';
+import { StorageService } from '@/lib/storage';
 
 export interface QuizSource {
   quizId: string;
@@ -105,8 +107,20 @@ export const useMultiQuizManager = () => {
     closeQuizPicker();
   }, [state.quizSources, updateQuizSource, closeQuizPicker]);
 
-  const validateQuizSources = useCallback((availableQuizzes: Quiz[]) => {
+  const validateQuizSources = useCallback(async (availableQuizzes: Quiz[], storage: StorageService, overallQuestionLimit?: number) => {
     const errors: string[] = [];
+    
+    // First, validate that sum of minimums doesn't exceed overall limit
+    if (overallQuestionLimit) {
+      const totalMinimumQuestions = state.quizSources.reduce((sum, source) => {
+        const minQuestions = typeof source.minQuestions === 'string' ? parseInt(source.minQuestions) || 0 : source.minQuestions || 0;
+        return sum + minQuestions;
+      }, 0);
+
+      if (totalMinimumQuestions > overallQuestionLimit) {
+        errors.push(`Sum of minimum questions (${totalMinimumQuestions}) exceeds overall question limit (${overallQuestionLimit}). Either reduce minimum values or increase the overall limit.`);
+      }
+    }
     
     for (let i = 0; i < state.quizSources.length; i++) {
       const source = state.quizSources[i];
@@ -122,32 +136,18 @@ export const useMultiQuizManager = () => {
         continue;
       }
 
-      const totalQuestions = sourceQuiz.questions?.length || 0;
+      // Use the recursive validation function which now only does basic validation
+      try {
+        const recursiveErrors = await validateRecursiveQuizSource(source, storage, i);
+        errors.push(...recursiveErrors);
+      } catch (error) {
+        errors.push(`Quiz Source #${i + 1}: Error validating quiz - ${error}`);
+      }
+
+      // Fixed count validation (not covered by recursive validator)
       const minQuestions = typeof source.minQuestions === 'string' ? parseInt(source.minQuestions) || 0 : source.minQuestions || 0;
       const maxQuestions = typeof source.maxQuestions === 'string' ? parseInt(source.maxQuestions) || 0 : source.maxQuestions || 0;
       
-      // Comprehensive validation
-      if (minQuestions < 1) {
-        errors.push(`Quiz Source #${i + 1}: Minimum questions must be at least 1`);
-      }
-      
-      if (maxQuestions < 1) {
-        errors.push(`Quiz Source #${i + 1}: Maximum questions must be at least 1`);
-      }
-      
-      if (minQuestions > totalQuestions) {
-        errors.push(`Quiz Source #${i + 1}: Minimum (${minQuestions}) exceeds available questions (${totalQuestions}) in "${sourceQuiz.title}"`);
-      }
-
-      if (maxQuestions > totalQuestions) {
-        errors.push(`Quiz Source #${i + 1}: Maximum (${maxQuestions}) exceeds available questions (${totalQuestions}) in "${sourceQuiz.title}"`);
-      }
-
-      if (minQuestions > maxQuestions) {
-        errors.push(`Quiz Source #${i + 1}: Minimum (${minQuestions}) cannot be greater than maximum (${maxQuestions})`);
-      }
-      
-      // Fixed count validation
       if (source.fixedCount && minQuestions !== maxQuestions) {
         errors.push(`Quiz Source #${i + 1}: Fixed count mode requires minimum and maximum to be equal`);
       }
@@ -156,16 +156,37 @@ export const useMultiQuizManager = () => {
     return errors;
   }, [state.quizSources]);
 
-  const getTotalQuestionRange = useCallback(() => {
-    const totalMinQuestions = state.quizSources.reduce((sum, s) => {
-      const minQuestions = typeof s.minQuestions === 'string' ? parseInt(s.minQuestions) || 0 : s.minQuestions || 0;
-      return sum + minQuestions;
-    }, 0);
+  const getTotalQuestionRange = useCallback(async (availableQuizzes: Quiz[], storage: StorageService) => {
+    let totalMinQuestions = 0;
+    let totalMaxQuestions = 0;
     
-    const totalMaxQuestions = state.quizSources.reduce((sum, s) => {
-      const maxQuestions = typeof s.maxQuestions === 'string' ? parseInt(s.maxQuestions) || 0 : s.maxQuestions || 0;
-      return sum + maxQuestions;
-    }, 0);
+    for (const source of state.quizSources) {
+      const minQuestions = typeof source.minQuestions === 'string' ? parseInt(source.minQuestions) || 0 : source.minQuestions || 0;
+      const maxQuestions = typeof source.maxQuestions === 'string' ? parseInt(source.maxQuestions) || 0 : source.maxQuestions || 0;
+      
+      if (source.quizId) {
+        try {
+          const sourceQuiz = availableQuizzes.find(q => q.id === source.quizId);
+          if (sourceQuiz) {
+            // Get recursive question count to ensure we don't exceed available questions
+            const resolvedInfo = await getRecursiveQuestionCount(sourceQuiz, storage);
+            const availableQuestions = resolvedInfo.totalQuestions;
+            
+            totalMinQuestions += Math.min(minQuestions, availableQuestions);
+            totalMaxQuestions += Math.min(maxQuestions, availableQuestions);
+          } else {
+            // Fallback if quiz not found
+            totalMinQuestions += minQuestions;
+            totalMaxQuestions += maxQuestions;
+          }
+        } catch (error) {
+          console.error(`Error getting question count for source ${source.quizId}:`, error);
+          // Fallback to configured values
+          totalMinQuestions += minQuestions;
+          totalMaxQuestions += maxQuestions;
+        }
+      }
+    }
     
     return { totalMinQuestions, totalMaxQuestions };
   }, [state.quizSources]);

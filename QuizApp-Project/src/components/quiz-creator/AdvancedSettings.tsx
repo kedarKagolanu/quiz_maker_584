@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Quiz, QuizFolder } from '@/types/quiz';
 import { QuizSource } from '@/hooks/useMultiQuizManager';
 import { QuizSourceManager } from './QuizSourceManager';
+import { getDisplayQuestionCount } from '@/lib/recursiveQuizResolver';
+import { storage } from '@/lib/storage';
 
 interface AdvancedSettingsProps {
   showAdvancedSettings: boolean;
@@ -81,7 +83,7 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
         return;
       }
       const num = parseInt(value);
-      if (!isNaN(num)) {
+      if (!isNaN(num) && num >= 1) {
         onCustomQuestionLimitChange(num);
       }
     }
@@ -96,27 +98,78 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
 
   const getTotalQuestionRange = () => {
     const totalMinQuestions = quizSources.reduce((sum, s) => {
-      const minQuestions = typeof s.minQuestions === 'string' ? parseInt(s.minQuestions) || 0 : s.minQuestions;
-      return sum + minQuestions;
+      const minQuestions = typeof s.minQuestions === 'string' ? parseInt(s.minQuestions) || 0 : s.minQuestions || 0;
+      
+      // Use recursive question count to validate against available questions
+      const availableQuestions = recursiveQuestionCounts.get(s.quizId) || 0;
+      const actualMin = Math.min(minQuestions, availableQuestions);
+      
+      return sum + actualMin;
     }, 0);
     
     const totalMaxQuestions = quizSources.reduce((sum, s) => {
-      const maxQuestions = typeof s.maxQuestions === 'string' ? parseInt(s.maxQuestions) || 0 : s.maxQuestions;
-      return sum + maxQuestions;
+      const maxQuestions = typeof s.maxQuestions === 'string' ? parseInt(s.maxQuestions) || 0 : s.maxQuestions || 0;
+      
+      // Use recursive question count to validate against available questions
+      const availableQuestions = recursiveQuestionCounts.get(s.quizId) || 0;
+      const actualMax = Math.min(maxQuestions, availableQuestions);
+      
+      return sum + actualMax;
     }, 0);
     
     return { totalMinQuestions, totalMaxQuestions };
   };
 
+  // State for recursive question counts
+  const [recursiveQuestionCounts, setRecursiveQuestionCounts] = useState<Map<string, number>>(new Map());
+  const [loadingCounts, setLoadingCounts] = useState(false);
+
+  // Load recursive question counts when available quizzes change
+  useEffect(() => {
+    const loadRecursiveQuestionCounts = async () => {
+      if (availableQuizzes.length === 0) return;
+      
+      setLoadingCounts(true);
+      const counts = new Map<string, number>();
+      
+      // Load recursive counts for all available quizzes
+      await Promise.all(
+        availableQuizzes.map(async (quiz) => {
+          try {
+            const count = await getDisplayQuestionCount(quiz, storage);
+            counts.set(quiz.id, count);
+          } catch (error) {
+            console.error(`Error getting recursive count for ${quiz.id}:`, error);
+            counts.set(quiz.id, quiz.questions?.length || 0);
+          }
+        })
+      );
+      
+      setRecursiveQuestionCounts(counts);
+      setLoadingCounts(false);
+      console.log('🔢 Loaded recursive question counts for validation:', Object.fromEntries(counts.entries()));
+    };
+
+    loadRecursiveQuestionCounts();
+  }, [availableQuizzes]);
+
   const validateAllSources = () => {
     return quizSources.every(source => {
       if (!source.quizId) return false;
-      const sourceQuiz = availableQuizzes.find(q => q.id === source.quizId);
-      const totalQuestions = sourceQuiz?.questions?.length || 0;
-      return source.minQuestions <= totalQuestions && 
-             source.maxQuestions <= totalQuestions && 
-             source.minQuestions >= 1 && 
-             source.minQuestions <= source.maxQuestions;
+      
+      // Use recursive question count for validation
+      const totalQuestions = recursiveQuestionCounts.get(source.quizId) || 0;
+      
+      // If still loading, assume valid for now
+      if (loadingCounts && totalQuestions === 0) return true;
+      
+      const minQuestions = typeof source.minQuestions === 'string' ? parseInt(source.minQuestions) || 0 : source.minQuestions || 0;
+      const maxQuestions = typeof source.maxQuestions === 'string' ? parseInt(source.maxQuestions) || 0 : source.maxQuestions || 0;
+      
+      return minQuestions <= totalQuestions && 
+             maxQuestions <= totalQuestions && 
+             minQuestions >= 1 && 
+             minQuestions <= maxQuestions;
     });
   };
 
@@ -162,7 +215,7 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
                 onChange={(e) => handleCustomQuestionLimitChange(e.target.value)}
                 onBlur={(e) => {
                   const value = e.target.value;
-                  if (value !== "" && !/^\d+$/.test(value)) {
+                  if (value !== "" && (!/^\d+$/.test(value) || parseInt(value) < 1)) {
                     onCustomQuestionLimitChange(1);
                   }
                 }}
@@ -233,19 +286,29 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
                   onQuizSelect={onQuizSelect}
                 />
                 
+                
                 {/* Summary */}
                 {quizSources.length > 0 && (
                   <div className={`border p-3 rounded mt-4 ${
-                    allSourcesValid && isQuestionLimitValid
-                      ? 'bg-blue-500/10 border-blue-500/30' 
-                      : 'bg-red-500/10 border-red-500/30'
+                    loadingCounts 
+                      ? 'bg-yellow-500/10 border-yellow-500/30'
+                      : allSourcesValid && isQuestionLimitValid
+                        ? 'bg-blue-500/10 border-blue-500/30' 
+                        : 'bg-red-500/10 border-red-500/30'
                   }`}>
                     <div className={`font-medium mb-2 ${
-                      allSourcesValid && isQuestionLimitValid 
-                        ? 'text-blue-300' 
-                        : 'text-red-300'
+                      loadingCounts 
+                        ? 'text-yellow-300'
+                        : allSourcesValid && isQuestionLimitValid 
+                          ? 'text-blue-300' 
+                          : 'text-red-300'
                     }`}>
-                      {allSourcesValid && isQuestionLimitValid ? '📊 Total Questions Summary:' : '⚠️ Configuration Issues:'}
+                      {loadingCounts 
+                        ? '🔄 Loading question counts...'
+                        : allSourcesValid && isQuestionLimitValid 
+                          ? '📊 Total Questions Summary:' 
+                          : '⚠️ Configuration Issues:'
+                      }
                     </div>
                     
                     {!allSourcesValid && (

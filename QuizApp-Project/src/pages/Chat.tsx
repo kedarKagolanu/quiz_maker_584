@@ -6,6 +6,7 @@ import { storage } from "@/lib/storage";
 import { ChatGroup, ChatMessage, Quiz, QuizFolder } from "@/types/quiz";
 import { MessageCircle, Users, Plus, Send, Share2, ExternalLink, Hash, Lock, UserPlus, RefreshCw, Folder, Globe } from "lucide-react";
 import { PageDescription } from "@/components/PageDescription";
+import { useRecursiveQuestionCounts } from "@/hooks/useRecursiveQuestionCount";
 import { toast } from "sonner";
 
 export const Chat: React.FC = () => {
@@ -28,6 +29,9 @@ export const Chat: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [joinGroupCode, setJoinGroupCode] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Get recursive question counts for user's quizzes
+  const { questionCounts } = useRecursiveQuestionCounts(myQuizzes);
 
   useEffect(() => {
     if (!user) {
@@ -730,7 +734,7 @@ export const Chat: React.FC = () => {
                   >
                     <div className="text-terminal-bright">{quiz.title}</div>
                     <div className="text-xs text-terminal-dim">
-                      {quiz.questions.length} questions
+                      {questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (including sources)" : ""}
                     </div>
                   </div>
                 ))

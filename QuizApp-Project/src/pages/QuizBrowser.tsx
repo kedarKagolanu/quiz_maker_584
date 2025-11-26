@@ -7,6 +7,7 @@ import { Quiz, QuizFolder, QuizAttempt } from "@/types/quiz";
 import { FileText, Folder, Lock, Globe, Clock, User, Play, Filter, Settings } from "lucide-react";
 import { PageDescription } from "@/components/PageDescription";
 import { toast } from "sonner";
+import { useRecursiveQuestionCounts } from "@/hooks/useRecursiveQuestionCount";
 
 type FilterType = 'all' | 'public' | 'private' | 'my-quizzes' | 'attempted' | 'folder';
 
@@ -22,6 +23,9 @@ export const QuizBrowser: React.FC = () => {
   const [currentFolderPath, setCurrentFolderPath] = useState<string>("");
   const [folderContents, setFolderContents] = useState<{quizzes: Quiz[], subfolders: QuizFolder[]}>({quizzes: [], subfolders: []});
   const [loading, setLoading] = useState(true);
+  
+  // Get recursive question counts for all quizzes
+  const { questionCounts } = useRecursiveQuestionCounts(quizzes);
 
   useEffect(() => {
     if (!user) {
@@ -39,14 +43,24 @@ export const QuizBrowser: React.FC = () => {
     if (!user) return;
 
     try {
-      const [quizzesData, foldersData, attemptsData] = await Promise.all([
+      const [allQuizzes, allFolders, attemptsData] = await Promise.all([
         storage.getQuizzes(),
         storage.getFolders(),
         storage.getUserAttempts(user.id)
       ]);
 
-      setQuizzes(quizzesData);
-      setFolders(foldersData);
+      // Get all accessible quizzes (public + user's own + shared quizzes) - exactly like Dashboard
+      const accessibleQuizzes = allQuizzes.filter(
+        (q) => q.isPublic || q.creator === user.id || q.sharedWith?.includes(user.id)
+      );
+
+      // Get all accessible folders (public + user's own + shared folders) - exactly like Dashboard
+      const accessibleFolders = allFolders.filter(
+        (f) => f.isPublic || f.creator === user.id || f.sharedWith?.includes(user.id)
+      );
+
+      setQuizzes(accessibleQuizzes);
+      setFolders(accessibleFolders);
       setAttempts(attemptsData);
       setLoading(false);
     } catch (error) {
@@ -171,14 +185,13 @@ export const QuizBrowser: React.FC = () => {
     return `${seconds}s`;
   };
 
-  const handleQuizClick = (quiz: Quiz, advanced: boolean = false) => {
-    // For multi-quiz, always go to advanced customizer to handle sources
-    if (quiz.multiQuizSources && !advanced) {
-      navigate(`/quiz/${quiz.id}/customize-advanced`);
+  const handleQuizClick = (quiz: Quiz, customize: boolean = false) => {
+    if (customize) {
+      // Both buttons now go to the same customize page
+      navigate(`/quiz/${quiz.id}/customize`);
     } else {
-      // Go to customizer first, then to quiz
-      const path = advanced ? `/quiz/${quiz.id}/customize-advanced` : `/quiz/${quiz.id}/customize`;
-      navigate(path);
+      // Quick start goes directly to taking the quiz
+      navigate(`/quiz/${quiz.id}/take`);
     }
   };
 
@@ -378,7 +391,7 @@ export const QuizBrowser: React.FC = () => {
                         )}
                         
                         <div className="flex flex-wrap gap-4 text-xs text-terminal-dim">
-                          <span>{quiz.questions.length} questions</span>
+                          <span>{questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (including sources)" : ""}</span>
                           
                           {quiz.timeLimit && (
                             <span>
@@ -422,7 +435,7 @@ export const QuizBrowser: React.FC = () => {
                           className="text-xs bg-terminal-accent/20 hover:bg-terminal-accent/30"
                         >
                           <Settings className="w-3 h-3 mr-1" />
-                          Advanced
+                          Customize & Start
                         </TerminalButton>
                       </div>
                     </div>

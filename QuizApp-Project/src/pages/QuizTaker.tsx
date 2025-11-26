@@ -8,6 +8,8 @@ import { Quiz, QuizQuestion, QuizAttempt } from "@/types/quiz";
 import { toast } from "sonner";
 import { soundEffects } from "@/lib/soundEffects";
 import { generateMultiQuizQuestions, MultiQuizGenerationResult } from "@/lib/multiQuizGenerator";
+import { resolveRecursiveQuestions, collectAllRecursiveQuestions } from "@/lib/recursiveQuizResolver";
+import { collectLeafQuestions } from "@/lib/quizSourceTree";
 
 export const QuizTaker: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -87,6 +89,7 @@ export const QuizTaker: React.FC = () => {
       }
 
       let finalQuestions = [...quizWithCustomSettings.questions];
+      let sectionsAlreadyCreated = false;
 
       // Check if this is a multi-quiz (either from stored config or URL params)
       const isMultiQuiz = quizWithCustomSettings.multiQuizSources || (multiQuizMode === 'true' && quizSources);
@@ -106,8 +109,9 @@ export const QuizTaker: React.FC = () => {
             if (generationResult) {
               setMultiQuizMetadata(generationResult.metadata);
               finalQuestions = generationResult.questions;
+              console.log(`🎯 Multi-quiz generation successful - metadata set:`, generationResult.metadata.sources.map(s => `${s.sourceTitle}: ${s.questionCount} questions`));
               
-              // Update quiz with merged media if available
+              // Update quiz with merged media and sections if available
               if ((generationResult as any).mergedMedia) {
                 // Properly merge media into the quiz object
                 const mergedMedia = (generationResult as any).mergedMedia;
@@ -116,9 +120,63 @@ export const QuizTaker: React.FC = () => {
                   media: mergedMedia
                 };
                 console.log(`📁 Updated quiz media: ${mergedMedia.length} items`);
-                console.log(`📁 Media details:`, mergedMedia);
+              }
+              
+              // Store section information for better navigation
+              if ((generationResult as any).sections) {
+                const generatedSections = (generationResult as any).sections;
+                console.log(`📚 Generated sections:`, generatedSections.map((s: any) => `${s.sectionName}: ${s.questions.length} questions`));
+                
+                // Convert generation sections to display sections
+                let sectionStartIndex = 0;
+                const displaySections = generatedSections.map((section: any) => {
+                  const sectionQuestions = finalQuestions.slice(sectionStartIndex, sectionStartIndex + section.questions.length);
+                  const sectionInfo = {
+                    title: section.sectionName,
+                    questions: sectionQuestions,
+                    startIndex: sectionStartIndex,
+                    sourceInfo: {
+                      quizId: section.sourceQuizId,
+                      title: section.sourceTitle,
+                      originalRange: section.originalRange
+                    }
+                  };
+                  
+                  // Update startIndex for next section
+                  sectionStartIndex += section.questions.length;
+                  
+                  return sectionInfo;
+                }).filter((section: any) => section.questions.length > 0);
+                
+                if (displaySections.length > 0) {
+                  setQuestionSections(displaySections);
+                  console.log(`📚 Set ${displaySections.length} question sections from generation result`);
+                  console.log(`✅ SECTIONS SET FROM GENERATION RESULT - SKIPPING FALLBACK LOGIC`);
+                  
+                  // Apply section-wise randomization if enabled
+                  if (quizWithCustomSettings.randomize) {
+                    displaySections.forEach(section => {
+                      // Use Fisher-Yates shuffle algorithm for true randomization within each section
+                      for (let i = section.questions.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [section.questions[i], section.questions[j]] = [section.questions[j], section.questions[i]];
+                      }
+                    });
+                    console.log('🔀 Applied proper Fisher-Yates randomization within each section (from generation result)');
+                    
+                    // Update finalQuestions with the randomized section order
+                    finalQuestions = displaySections.flatMap(section => section.questions);
+                    console.log(`📚 Updated finalQuestions with randomized sections: ${finalQuestions.length} questions`);
+                    
+                    // Update sections after randomization
+                    setQuestionSections(displaySections);
+                  }
+                  
+                  // Mark that sections have been successfully created from generation result
+                  sectionsAlreadyCreated = true;
+                }
               } else {
-                console.warn(`⚠️ No merged media found in generation result`);
+                console.warn(`⚠️ No section information found in generation result`);
               }
               
               // Properly dismiss the loading toast and show success
@@ -162,7 +220,7 @@ export const QuizTaker: React.FC = () => {
       let qs = finalQuestions;
       let sections: {title: string, questions: QuizQuestion[], startIndex: number}[] = [];
       
-      if (quizWithCustomSettings.multiQuizSources) {
+      if (quizWithCustomSettings.multiQuizSources && !sectionsAlreadyCreated) {
         console.log('📚 Creating sections for multi-quiz');
         console.log('📚 Quiz has multiQuizSources:', quizWithCustomSettings.multiQuizSources);
         console.log('📚 MultiQuizMetadata:', multiQuizMetadata);
@@ -174,33 +232,27 @@ export const QuizTaker: React.FC = () => {
           // Use metadata if available
           console.log('📚 Using multiQuizMetadata for section creation');
           
-          // Group questions by source quiz to create sections
-          const sourceMap = new Map<string, QuizQuestion[]>();
-          finalQuestions.forEach(q => {
-            const sourceId = (q as any)._sourceQuiz || 'unknown';
-            if (!sourceMap.has(sourceId)) {
-              sourceMap.set(sourceId, []);
-            }
-            sourceMap.get(sourceId)!.push(q);
-          });
-          
+          // Create sections based on the actual distribution from metadata
           multiQuizMetadata.sources.forEach((sourceInfo, idx) => {
-            const sourceQuestions = sourceMap.get(sourceInfo.quizId) || [];
-            if (sourceQuestions.length > 0) {
+            // Calculate how many questions this source should get based on the metadata
+            const sourceQuestionCount = sourceInfo.questionCount || 0;
+            
+            if (sourceQuestionCount > 0 && currentIndexTracker + sourceQuestionCount <= finalQuestions.length) {
+              // Get the actual questions for this section from the final questions array
+              const sectionQuestions = finalQuestions.slice(currentIndexTracker, currentIndexTracker + sourceQuestionCount);
+              
               // Try to get custom section name from quiz configuration
               const sourceConfig = quizWithCustomSettings.multiQuizSources?.sources?.find(s => s.quizId === sourceInfo.quizId);
               const sectionTitle = sourceConfig?.sectionName || sourceInfo.quizTitle || `Quiz ${idx + 1}`;
               
-              console.log(`🎯 Creating section: "${sectionTitle}" for source ${sourceInfo.quizId}`);
-              console.log(`🎯 Source config:`, sourceConfig);
-              console.log(`🎯 Source info:`, sourceInfo);
+              console.log(`🎯 Creating section: "${sectionTitle}" for source ${sourceInfo.quizId} with ${sourceQuestionCount} questions (${currentIndexTracker} to ${currentIndexTracker + sourceQuestionCount - 1})`);
               
               sections.push({
                 title: sectionTitle,
-                questions: sourceQuestions,
+                questions: sectionQuestions,
                 startIndex: currentIndexTracker
               });
-              currentIndexTracker += sourceQuestions.length;
+              currentIndexTracker += sourceQuestionCount;
             }
           });
         } else {
@@ -248,6 +300,11 @@ export const QuizTaker: React.FC = () => {
         setQuestionSections(sections);
         
         console.log(`📚 Created ${sections.length} sections:`, sections.map(s => `${s.title}: ${s.questions.length} questions`));
+      } else if (sectionsAlreadyCreated) {
+        // Sections were already created from generation result - they should already be set in finalQuestions
+        console.log('📚 Using questions from generation result (sections already processed)');
+        qs = finalQuestions;
+        console.log(`📚 Using ${qs.length} questions from generation result`);
       } else {
         // Regular quiz - apply proper randomization
         if (quizWithCustomSettings.randomize) {
@@ -331,25 +388,124 @@ export const QuizTaker: React.FC = () => {
   }, [id, user, navigate]);
 
   const buildMultiQuizQuestions = async (sources: any[]) => {
-    const allQuestions: QuizQuestion[] = [];
+    console.log('🔧 Using legacy buildMultiQuizQuestions - converting to new system');
     
-    for (const source of sources) {
-      const sourceQuiz = await storage.getQuizById(source.quizId);
-      if (!sourceQuiz) continue;
-      
-      let questionsToTake: number;
-      if (source.fixedCount) {
-        questionsToTake = source.minQuestions;
-      } else {
-        questionsToTake = Math.floor(Math.random() * (source.maxQuestions - source.minQuestions + 1)) + source.minQuestions;
+    // Create a temporary quiz object with the URL sources to use the new recursive system
+    const tempQuiz: Quiz = {
+      id: 'temp-url-quiz',
+      title: 'URL Multi-Quiz',
+      questions: [],
+      creator: user?.id || '',
+      createdAt: Date.now(),
+      isPublic: false,
+      multiQuizSources: {
+        sources: sources.map(s => ({
+          quizId: s.quizId,
+          minQuestions: s.minQuestions || 1,
+          maxQuestions: s.maxQuestions || 1,
+          fixedCount: s.fixedCount || false,
+          sectionName: s.sectionName || 'Quiz Source'
+        })),
+        preserveQuizOrder: false
       }
-      
-      const shuffledQuestions = [...sourceQuiz.questions].sort(() => Math.random() - 0.5);
-      const selectedQuestions = shuffledQuestions.slice(0, questionsToTake);
-      allQuestions.push(...selectedQuestions);
-    }
+    };
     
-    return allQuestions;
+    try {
+      // Use the new recursive multi-quiz generator
+      const result = await generateMultiQuizQuestions(tempQuiz, storage);
+      if (result && result.questions) {
+        console.log(`✅ Generated ${result.questions.length} questions using new recursive system`);
+        
+        // Update metadata for URL-based multi-quiz
+        if (result.metadata) {
+          setMultiQuizMetadata(result.metadata);
+        }
+        
+        return result.questions;
+      } else {
+        throw new Error('Failed to generate questions with new system');
+      }
+    } catch (error) {
+      console.error('❌ Failed to use new system, falling back to range-aware method:', error);
+      
+      // Fallback to collection-based recursive resolution
+      try {
+        const resolutionResult = await collectAllRecursiveQuestions(
+          tempQuiz,
+          storage,
+          false // URL-based mode defaults to random order
+        );
+        
+        console.log(`✅ Generated ${resolutionResult.questions.length} questions using range-aware fallback`);
+        
+        // Store section information if available
+        if (resolutionResult.sections && resolutionResult.sections.length > 0) {
+          let sectionStartIndex = 0;
+          const displaySections = resolutionResult.sections.map(section => {
+            const sectionQuestions = resolutionResult.questions.slice(sectionStartIndex, sectionStartIndex + section.questions.length);
+            const sectionInfo = {
+              title: section.sectionName,
+              questions: sectionQuestions,
+              startIndex: sectionStartIndex,
+              sourceInfo: {
+                quizId: section.sourceQuizId,
+                title: section.sourceTitle,
+                originalRange: section.originalRange
+              }
+            };
+            
+            // Update startIndex for next section
+            sectionStartIndex += section.questions.length;
+            
+            return sectionInfo;
+          });
+          
+          setQuestionSections(displaySections);
+        }
+        
+        return resolutionResult.questions;
+        
+      } catch (fallbackError) {
+        console.error('❌ Range-aware fallback also failed, using basic method:', fallbackError);
+        
+        // Final fallback: basic recursive resolution without ranges
+        const allQuestions: QuizQuestion[] = [];
+        
+        for (const source of sources) {
+          try {
+            const sourceQuiz = await storage.getQuizById(source.quizId);
+            if (!sourceQuiz) continue;
+            
+            // Use basic recursive resolution
+            const resolvedQuestions = await resolveRecursiveQuestions(sourceQuiz, storage);
+            
+            let questionsToTake: number;
+            if (source.fixedCount) {
+              questionsToTake = source.minQuestions;
+            } else {
+              questionsToTake = Math.floor(Math.random() * (source.maxQuestions - source.minQuestions + 1)) + source.minQuestions;
+            }
+            
+            // Limit by available questions
+            questionsToTake = Math.min(questionsToTake, resolvedQuestions.length);
+            
+            const shuffledQuestions = [...resolvedQuestions];
+            for (let i = shuffledQuestions.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
+            }
+            const selectedQuestions = shuffledQuestions.slice(0, questionsToTake);
+            allQuestions.push(...selectedQuestions);
+            
+            console.log(`📖 Added ${selectedQuestions.length}/${questionsToTake} questions from ${sourceQuiz.title} (${resolvedQuestions.length} available)`);
+          } catch (error) {
+            console.error(`❌ Error processing source ${source.quizId}:`, error);
+          }
+        }
+        
+        return allQuestions;
+      }
+    }
   };
 
   useEffect(() => {

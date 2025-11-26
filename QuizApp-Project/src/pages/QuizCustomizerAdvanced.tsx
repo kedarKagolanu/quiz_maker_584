@@ -4,6 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
 import { Quiz, CustomQuizSource } from "@/types/quiz";
+import { validateRecursiveQuizSource } from "@/lib/recursiveQuizResolver";
+import { getTotalLeafQuestions } from '@/lib/quizSourceTree';
+import { QuizSourceManager } from '@/components/quiz-creator/QuizSourceManager';
 import { toast } from "sonner";
 import { Plus, Minus, Settings, Play, FileText } from "lucide-react";
 
@@ -69,7 +72,7 @@ export const QuizCustomizerAdvanced: React.FC = () => {
     setCustomQuizSources(newSources);
   };
 
-  const validateQuizSources = (): string | null => {
+  const validateQuizSources = async (): Promise<string | null> => {
     for (const source of customQuizSources) {
       if (!source.quizId) return "Please select a quiz for all sources";
       
@@ -78,8 +81,10 @@ export const QuizCustomizerAdvanced: React.FC = () => {
       
       if (source.minQuestions < 1) return "Minimum questions must be at least 1";
       if (source.maxQuestions < source.minQuestions) return "Maximum questions must be >= minimum questions";
-      if (source.maxQuestions > sourceQuiz.questions.length) {
-        return `Quiz "${sourceQuiz.title}" has only ${sourceQuiz.questions.length} questions, but you requested up to ${source.maxQuestions}`;
+      // Use recursive validation for accurate question counts
+      const recursiveErrors = await validateRecursiveQuizSource(source, storage, customQuizSources.indexOf(source));
+      if (recursiveErrors.length > 0) {
+        return recursiveErrors[0];
       }
       
       if (source.fixedCount && source.minQuestions !== source.maxQuestions) {
@@ -101,11 +106,11 @@ export const QuizCustomizerAdvanced: React.FC = () => {
     }
   };
 
-  const startQuiz = () => {
+  const startQuiz = async () => {
     if (!quiz) return;
 
     if (multiQuizMode) {
-      const validationError = validateQuizSources();
+      const validationError = await validateQuizSources();
       if (validationError) {
         toast.error(validationError);
         return;

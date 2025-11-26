@@ -11,6 +11,7 @@ import {
   Copy, Edit, Trash2, Folder, FolderOpen, ChevronRight, Home,
   FolderPlus, FilePlus, Share2, Clock, FileText, Lock, Globe
 } from "lucide-react";
+import { useRecursiveQuestionCounts } from "@/hooks/useRecursiveQuestionCount";
 
 export const MyQuizzesExplorer: React.FC = () => {
   const { user } = useAuth();
@@ -24,6 +25,9 @@ export const MyQuizzesExplorer: React.FC = () => {
   const [renameFolderValue, setRenameFolderValue] = useState("");
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'details' | 'list'>('details');
+  
+  // Get recursive question counts for all quizzes
+  const { questionCounts } = useRecursiveQuestionCounts(quizzes);
 
   useEffect(() => {
     if (!user) {
@@ -178,7 +182,9 @@ export const MyQuizzesExplorer: React.FC = () => {
   };
 
   const formatFileSize = (quiz: Quiz) => {
-    return `${quiz.questions.length} questions`;
+    const count = questionCounts.get(quiz.id) || quiz.questions?.length || 0;
+    const suffix = quiz.multiQuizSources ? " (including sources)" : "";
+    return `${count} questions${suffix}`;
   };
 
   const currentSubfolders = getCurrentSubfolders();
@@ -513,7 +519,7 @@ export const MyQuizzesExplorer: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <FileText className="w-5 h-5 text-terminal-accent" />
                     <span className="text-terminal-foreground">{quiz.title}</span>
-                    <span className="text-xs text-terminal-dim">({quiz.questions.length} questions)</span>
+                    <span className="text-xs text-terminal-dim">({questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " including sources" : ""})</span>
                   </div>
                   <div className="flex gap-1">
                     <button

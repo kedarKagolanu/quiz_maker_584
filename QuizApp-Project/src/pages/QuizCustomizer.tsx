@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useMultiQuizManager } from "@/hooks/useMultiQuizManager";
 import { QuizSourceManager } from "@/components/quiz-creator/QuizSourceManager";
 import { MediaUploader, type MediaItem } from "@/components/quiz-creator/MediaUploader";
+import { ValidationErrorDisplay, ValidationErrors } from "@/components/ValidationErrorDisplay";
 
 export const QuizCustomizer: React.FC = () => {
   const { user } = useAuth();
@@ -32,6 +33,12 @@ export const QuizCustomizer: React.FC = () => {
   const [availableQuizzes, setAvailableQuizzes] = useState<Quiz[]>([]);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [uploadedMedia] = useState<MediaItem[]>([]);
+  const [validationErrors, setValidationErrors] = useState<Array<{
+    type: 'question_limit' | 'json_parse' | 'json_structure' | 'multi_quiz' | 'general';
+    message: string;
+    details?: string;
+    solution?: string;
+  }>>([]);
 
   useEffect(() => {
     if (!user || !id) {
@@ -103,18 +110,73 @@ export const QuizCustomizer: React.FC = () => {
     }
   };
 
-  const handleStartQuiz = () => {
+  const handleStartQuiz = async () => {
     if (!quiz) return;
+    
+    // Clear previous validation errors
+    setValidationErrors([]);
+    
+    // Validate question limit if set
+    if (customSettings.questionLimit) {
+      if (multiQuizState.multiQuizMode) {
+        // For multi-quiz, we need to calculate total minimum questions
+        let totalMinQuestions = 0;
+        for (const source of multiQuizState.quizSources) {
+          const minQuestions = typeof source.minQuestions === 'string' ? parseInt(source.minQuestions) || 0 : source.minQuestions || 0;
+          totalMinQuestions += minQuestions;
+        }
+        if (customSettings.questionLimit < totalMinQuestions) {
+          const error = ValidationErrors.questionLimit(customSettings.questionLimit, totalMinQuestions);
+          setValidationErrors([error]);
+          toast.error(`Question limit (${customSettings.questionLimit}) is less than minimum required questions (${totalMinQuestions}) from your sources`);
+          return;
+        }
+      } else {
+        // For single quiz, validate against total questions
+        if (customSettings.questionLimit > (quiz.questions?.length || 0)) {
+          const error = ValidationErrors.questionLimit(customSettings.questionLimit, quiz.questions?.length || 0);
+          setValidationErrors([error]);
+          toast.error(`Question limit (${customSettings.questionLimit}) cannot be greater than total questions (${quiz.questions?.length || 0})`);
+          return;
+        }
+      }
+    }
     
     // Validate multi-quiz settings if enabled
     if (multiQuizState.multiQuizMode) {
-      const validationErrors = multiQuizActions.validateQuizSources(availableQuizzes);
-      if (validationErrors.length > 0) {
-        toast.error(validationErrors[0]);
-        return;
-      }
-      if (multiQuizState.quizSources.length === 0) {
-        toast.error("Please add at least one quiz source for multi-quiz mode");
+      try {
+        // Pass the overall question limit for validation
+        const overallLimit = customSettings.questionLimit || quiz.questionLimit || quiz.customQuestionLimit;
+        const validationMessages = await multiQuizActions.validateQuizSources(availableQuizzes, storage, overallLimit);
+        if (validationMessages.length > 0) {
+          console.error('❌ Multi-quiz validation failed:', validationMessages);
+          const errors = validationMessages.map(msg => ({
+            type: 'multi_quiz' as const,
+            message: 'Multi-quiz configuration error',
+            details: msg,
+            solution: 'Please check your quiz source configurations and ensure all minimum/maximum values are valid.'
+          }));
+          setValidationErrors(errors);
+          toast.error(`Configuration error: ${validationMessages[0]}`);
+          return;
+        }
+        if (multiQuizState.quizSources.length === 0) {
+          const error = ValidationErrors.multiQuizMinimum('Multi-quiz sources', 1, 0);
+          setValidationErrors([error]);
+          toast.error("Please add at least one quiz source for multi-quiz mode");
+          return;
+        }
+        console.log('✅ Multi-quiz validation passed');
+      } catch (error) {
+        console.error('❌ Error during multi-quiz validation:', error);
+        const validationError = {
+          type: 'multi_quiz' as const,
+          message: 'Validation error during multi-quiz setup',
+          details: error instanceof Error ? error.message : String(error),
+          solution: 'Please check your network connection and try again, or contact support if the problem persists.'
+        };
+        setValidationErrors([validationError]);
+        toast.error(`Validation error: ${error}`);
         return;
       }
     }
@@ -185,9 +247,17 @@ export const QuizCustomizer: React.FC = () => {
             </TerminalLine>
           )}
           <TerminalLine prefix="?" className="text-terminal-bright ml-6">
-            {quiz.questions.length} questions
+            {quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (base only - recursive calculation at runtime)" : ""}
           </TerminalLine>
         </div>
+
+        {/* Validation Errors Display */}
+        {validationErrors.length > 0 && (
+          <ValidationErrorDisplay 
+            errors={validationErrors} 
+            className="my-4"
+          />
+        )}
 
         {/* Settings Toggle */}
         <div>
@@ -238,7 +308,8 @@ export const QuizCustomizer: React.FC = () => {
                       value={customSettings.timeLimit || ""}
                       onChange={(e) => setCustomSettings(prev => ({ 
                         ...prev, 
-                        timeLimit: e.target.value ? parseInt(e.target.value) : null 
+                        timeLimit: e.target.value ? parseInt(e.target.value) : null,
+                        perQuestionTimeLimit: e.target.value ? null : prev.perQuestionTimeLimit // Clear per-question when overall is set
                       }))}
                       placeholder="No limit"
                       className="w-20 bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded"
@@ -251,6 +322,11 @@ export const QuizCustomizer: React.FC = () => {
                   <div className="text-xs text-terminal-dim mt-1">
                     Default: {formatTime(quiz.timeLimit)}
                   </div>
+                  {customSettings.perQuestionTimeLimit && (
+                    <div className="text-xs text-yellow-400 mt-1">
+                      ⚠️ Cannot use both time limits. Clear per-question limit to use overall limit.
+                    </div>
+                  )}
                 </div>
 
                 {/* Per Question Time Limit */}
@@ -265,7 +341,8 @@ export const QuizCustomizer: React.FC = () => {
                       value={customSettings.perQuestionTimeLimit || ""}
                       onChange={(e) => setCustomSettings(prev => ({ 
                         ...prev, 
-                        perQuestionTimeLimit: e.target.value ? parseInt(e.target.value) : null 
+                        perQuestionTimeLimit: e.target.value ? parseInt(e.target.value) : null,
+                        timeLimit: e.target.value ? null : prev.timeLimit // Clear overall when per-question is set
                       }))}
                       placeholder="No limit"
                       className="w-20 bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded"
@@ -274,10 +351,20 @@ export const QuizCustomizer: React.FC = () => {
                     <span className="text-terminal-accent">
                       ({formatTime(customSettings.perQuestionTimeLimit)})
                     </span>
+                    {customSettings.perQuestionTimeLimit && parseInt(customSettings.perQuestionTimeLimit.toString()) > 0 && (
+                      <span className="text-green-400 text-sm ml-2">
+                        ≈ {Math.ceil((customSettings.perQuestionTimeLimit * (quiz.questions?.length || 0)) / 60)}min total
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-terminal-dim mt-1">
                     Default: {formatTime(quiz.perQuestionTimeLimit)}
                   </div>
+                  {customSettings.timeLimit && (
+                    <div className="text-xs text-yellow-400 mt-1">
+                      ⚠️ Cannot use both time limits. Clear overall limit to use per-question limit.
+                    </div>
+                  )}
                 </div>
 
                 {/* Randomize Questions */}
@@ -314,7 +401,7 @@ export const QuizCustomizer: React.FC = () => {
                       max={quiz.questions.length}
                       className="w-20 bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded"
                     />
-                    <span className="text-terminal-dim">out of {quiz.questions.length} questions</span>
+                    <span className="text-terminal-dim">out of {quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (base only)" : ""}</span>
                   </div>
                   <div className="text-xs text-terminal-dim mt-1">
                     Limit how many questions to include (requires randomization)
@@ -421,14 +508,11 @@ export const QuizCustomizer: React.FC = () => {
                           {multiQuizState.quizSources.length} source{multiQuizState.quizSources.length !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      {multiQuizState.quizSources.length > 0 && (() => {
-                        const { totalMinQuestions, totalMaxQuestions } = multiQuizActions.getTotalQuestionRange();
-                        return (
-                          <div className="text-terminal-dim text-xs ml-6">
-                            Expected questions: {totalMinQuestions === totalMaxQuestions ? totalMinQuestions : `${totalMinQuestions}-${totalMaxQuestions}`}
-                          </div>
-                        );
-                      })()}
+                      {multiQuizState.quizSources.length > 0 && (
+                        <div className="text-terminal-dim text-xs ml-6">
+                          {multiQuizState.quizSources.length} source{multiQuizState.quizSources.length !== 1 ? 's' : ''} configured
+                        </div>
+                      )}
                       <div className="text-terminal-dim text-xs ml-6">
                         Quiz order: {multiQuizState.preserveQuizOrder ? 'Preserved' : 'Fully randomized'}
                       </div>

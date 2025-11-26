@@ -22,6 +22,14 @@ export interface QuizCreatorState {
   jsonError: string;
   errorLine: number | null;
   errorColumn: number | null;
+  validationErrors: ValidationError[];
+}
+
+interface ValidationError {
+  type: 'question_limit' | 'json_parse' | 'json_structure' | 'multi_quiz' | 'general';
+  message: string;
+  details?: string;
+  solution?: string;
 }
 
 export interface QuizCreatorActions {
@@ -41,6 +49,9 @@ export interface QuizCreatorActions {
   setJsonError: (error: string) => void;
   setErrorLine: (line: number | null) => void;
   setErrorColumn: (column: number | null) => void;
+  setValidationErrors: (errors: ValidationError[]) => void;
+  addValidationError: (error: ValidationError) => void;
+  clearValidationErrors: () => void;
   loadQuizForEditing: (quizId: string, userId: string) => Promise<void>;
   generateAccessCode: () => void;
 }
@@ -62,6 +73,7 @@ const initialState: QuizCreatorState = {
   jsonError: '',
   errorLine: null,
   errorColumn: null,
+  validationErrors: [],
 };
 
 export const useQuizCreator = () => {
@@ -117,6 +129,13 @@ export const useQuizCreator = () => {
   const setJsonError = useCallback((jsonError: string) => updateState({ jsonError }), [updateState]);
   const setErrorLine = useCallback((errorLine: number | null) => updateState({ errorLine }), [updateState]);
   const setErrorColumn = useCallback((errorColumn: number | null) => updateState({ errorColumn }), [updateState]);
+  
+  const setValidationErrors = useCallback((validationErrors: ValidationError[]) => 
+    updateState({ validationErrors }), [updateState]);
+  const addValidationError = useCallback((error: ValidationError) => 
+    updateState(prev => ({ validationErrors: [...prev.validationErrors, error] })), [updateState]);
+  const clearValidationErrors = useCallback(() => 
+    updateState({ validationErrors: [] }), [updateState]);
 
   const generateAccessCode = useCallback(() => {
     const code = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -173,6 +192,9 @@ export const useQuizCreator = () => {
     setJsonError,
     setErrorLine,
     setErrorColumn,
+    setValidationErrors,
+    addValidationError,
+    clearValidationErrors,
     loadQuizForEditing,
     generateAccessCode,
   };

@@ -6,6 +6,7 @@ import { storage } from "@/lib/storage";
 import { Quiz, QuizAttempt, User, QuizFolder } from "@/types/quiz";
 import { Trophy, FileText, History, User as UserIcon, Upload, Loader2, Music } from "lucide-react";
 import { toast } from "sonner";
+import { useRecursiveQuestionCounts } from "@/hooks/useRecursiveQuestionCount";
 import { quizSchema, folderNameSchema, validateInput } from "@/lib/validation";
 import { handleError } from "@/lib/errorHandler";
 
@@ -18,6 +19,9 @@ export const Profile: React.FC = () => {
   const [userQuizzes, setUserQuizzes] = useState<Quiz[]>([]);
   const [userAttempts, setUserAttempts] = useState<QuizAttempt[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Get recursive question counts for user's quizzes
+  const { questionCounts } = useRecursiveQuestionCounts(userQuizzes);
   const [migrating, setMigrating] = useState(false);
 
   // Check if database is configured
@@ -267,7 +271,7 @@ export const Profile: React.FC = () => {
                   <div>
                     <div className="text-terminal-bright">{quiz.title}</div>
                     <div className="text-sm text-terminal-dim">
-                      {quiz.questions.length} questions • {quiz.isPublic ? "Public" : "Private"}
+                      {questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (including sources)" : ""} • {quiz.isPublic ? "Public" : "Private"}
                       {quiz.folderPath && ` • ${quiz.folderPath}`}
                     </div>
                   </div>

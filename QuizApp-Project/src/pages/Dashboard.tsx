@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getDisplayQuestionCounts } from "@/lib/recursiveQuizResolver";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
@@ -177,6 +178,7 @@ export const Dashboard: React.FC = () => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
   const [showAccessCodeInput, setShowAccessCodeInput] = useState(false);
   const [accessCodeInput, setAccessCodeInput] = useState("");
+  const [questionCounts, setQuestionCounts] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!user) {
@@ -226,6 +228,20 @@ export const Dashboard: React.FC = () => {
       // Build hierarchical folder tree with quizzes properly organized
       const tree = buildFolderTree(accessibleQuizzes, foldersWithStats);
       setAvailableFolderTree(tree);
+      
+      // Get recursive question counts for all accessible quizzes
+      try {
+        const counts = await getDisplayQuestionCounts(accessibleQuizzes, storage);
+        setQuestionCounts(counts);
+      } catch (error) {
+        console.error("Error getting question counts:", error);
+        // Fallback to direct question counts
+        const fallbackCounts = new Map();
+        accessibleQuizzes.forEach(quiz => {
+          fallbackCounts.set(quiz.id, quiz.questions?.length || 0);
+        });
+        setQuestionCounts(fallbackCounts);
+      }
       
       const userAttempts = await storage.getUserAttempts(user.id);
       setAttempts(userAttempts);
@@ -324,7 +340,7 @@ export const Dashboard: React.FC = () => {
                   <div>
                     <div className="text-terminal-bright">{quiz.title}</div>
                     <div className="text-sm text-terminal-dim">
-                      {quiz.questions.length} questions • {quiz.isPublic ? "Public" : "Shared"}
+                      {questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (including sources)" : ""} • {quiz.isPublic ? "Public" : "Shared"}
                     </div>
                   </div>
                 </div>

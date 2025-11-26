@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { getDisplayQuestionCount } from "@/lib/recursiveQuizResolver";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalInput, TerminalButton, TerminalLine } from "@/components/Terminal";
@@ -13,7 +14,8 @@ import { useQuizCreator } from "@/hooks/useQuizCreator";
 import { useMultiQuizManager } from "@/hooks/useMultiQuizManager";
 import { MediaUploader, type MediaItem } from "@/components/quiz-creator/MediaUploader";
 import { QuizSettings } from "@/components/quiz-creator/QuizSettings";
-import { AdvancedSettings } from "@/components/quiz-creator/AdvancedSettings";
+import { QuizSourceManager } from "@/components/quiz-creator/QuizSourceManager";
+import { ValidationErrorDisplay, ValidationErrors } from "@/components/ValidationErrorDisplay";
 
 export const QuizCreator: React.FC = () => {
   const { user } = useAuth();
@@ -154,24 +156,78 @@ export const QuizCreator: React.FC = () => {
     }
     const validatedTitle = titleValidation.data;
 
-    // Validate multi-quiz mode settings
+    // Comprehensive multi-quiz validation
     if (multiQuizState.multiQuizMode) {
       if (multiQuizState.quizSources.length === 0) {
         toast.error("Multi-Quiz Mode: Please add at least one quiz source");
         return;
       }
 
-      // Validate each quiz source using extracted validation
-      const validationErrors = multiQuizActions.validateQuizSources(availableQuizzes);
-      if (validationErrors.length > 0) {
-        toast.error(validationErrors[0]);
+      // Validate each quiz source thoroughly
+      let totalValidationErrors: string[] = [];
+      
+      for (let i = 0; i < multiQuizState.quizSources.length; i++) {
+        const source = multiQuizState.quizSources[i];
+        
+        if (!source.quizId) {
+          totalValidationErrors.push(`Source ${i + 1}: No quiz selected`);
+          continue;
+        }
+        
+        const sourceQuiz = availableQuizzes.find(q => q.id === source.quizId);
+        if (!sourceQuiz) {
+          totalValidationErrors.push(`Source ${i + 1}: Selected quiz not found`);
+          continue;
+        }
+        
+        // Get recursive question count
+        const totalQuestions = await getDisplayQuestionCount(sourceQuiz, storage);
+        const minQuestions = typeof source.minQuestions === 'string' ? parseInt(source.minQuestions) || 0 : source.minQuestions || 0;
+        const maxQuestions = typeof source.maxQuestions === 'string' ? parseInt(source.maxQuestions) || 0 : source.maxQuestions || 0;
+        
+        // Basic validation only - let the generation process handle recursive resolution
+        if (minQuestions < 1) {
+          totalValidationErrors.push(`Source ${i + 1}: Minimum questions must be at least 1 (current: ${minQuestions})`);
+        }
+        if (minQuestions > maxQuestions) {
+          totalValidationErrors.push(`Quiz Source #${i + 1}: Minimum (${minQuestions}) cannot be greater than maximum (${maxQuestions})`);
+        }
+        if (source.fixedCount && minQuestions !== maxQuestions) {
+          totalValidationErrors.push(`Quiz Source #${i + 1}: Fixed count mode requires minimum and maximum to be equal`);
+        }
+        
+        // Note: We don't validate against totalQuestions here because:
+        // 1. The recursive resolver will handle nested sources intelligently during generation
+        // 2. This matches the improved validation approach in the validation system
+        // 3. Question selection happens during generation, not during validation setup
+      }
+      
+      if (totalValidationErrors.length > 0) {
+        console.error('❌ Multi-quiz validation failed:', totalValidationErrors);
+        // Show a detailed error message with all validation issues
+        const errorMessage = `❌ Cannot create quiz - Configuration errors found:\n\n${totalValidationErrors.map(error => `• ${error}`).join('\n')}`;
+        toast.error(errorMessage, {
+          duration: 10000, // Show for 10 seconds
+          style: {
+            maxWidth: '500px',
+            whiteSpace: 'pre-line'
+          }
+        });
         return;
       }
 
+      // Calculate total question ranges for question limit validation
+      let totalMinQuestions = 0;
+      for (const source of multiQuizState.quizSources) {
+        const minQuestions = typeof source.minQuestions === 'string' ? parseInt(source.minQuestions) || 0 : source.minQuestions || 0;
+        totalMinQuestions += minQuestions;
+      }
+
       // Validate question limit against total
-      const { totalMinQuestions } = multiQuizActions.getTotalQuestionRange();
       if (quizState.customQuestionLimit && quizState.customQuestionLimit < totalMinQuestions) {
         console.error(`❌ Question limit validation failed: ${quizState.customQuestionLimit} < ${totalMinQuestions}`);
+        const error = ValidationErrors.questionLimit(quizState.customQuestionLimit, totalMinQuestions);
+        quizActions.setValidationErrors([error]);
         toast.error(`❌ Question limit (${quizState.customQuestionLimit}) is less than minimum required questions (${totalMinQuestions}) from your sources`);
         return;
       }
@@ -181,16 +237,24 @@ export const QuizCreator: React.FC = () => {
       console.log('📄 Single quiz mode - skipping multi-quiz validation');
     }
 
+    // Clear previous validation errors
+    quizActions.clearValidationErrors();
+
     // Validate question limit against total questions for single quiz mode
     if (!multiQuizState.multiQuizMode && quizState.customQuestionLimit && quizState.jsonInput) {
       try {
         const questions = JSON.parse(quizState.jsonInput);
         if (Array.isArray(questions) && quizState.customQuestionLimit > questions.length) {
+          const error = ValidationErrors.questionLimit(quizState.customQuestionLimit, questions.length);
+          quizActions.setValidationErrors([error]);
           toast.error(`❌ Question limit (${quizState.customQuestionLimit}) cannot be greater than total questions (${questions.length})`);
           return;
         }
       } catch (e) {
-        // JSON validation will catch this later
+        const error = ValidationErrors.jsonParse(e instanceof Error ? e.message : 'Invalid JSON syntax');
+        quizActions.setValidationErrors([error]);
+        toast.error("❌ JSON syntax error - check your JSON format");
+        return;
       }
     }
 
@@ -502,6 +566,14 @@ export const QuizCreator: React.FC = () => {
           onChange={(e) => quizActions.setTitle(e.target.value)}
         />
 
+        {/* Validation Errors Display */}
+        {quizState.validationErrors.length > 0 && (
+          <ValidationErrorDisplay 
+            errors={quizState.validationErrors} 
+            className="my-4"
+          />
+        )}
+
         <div>
           <div className="mb-4 flex items-center gap-4">
             <div className="text-terminal-bright font-medium">JSON Editor:</div>
@@ -586,7 +658,15 @@ export const QuizCreator: React.FC = () => {
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={(e) => handleMediaUpload(e, 'image')}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleMediaUpload(Array.from(e.target.files).map(file => ({
+                      name: file.name,
+                      type: 'image' as const,
+                      data: URL.createObjectURL(file)
+                    })));
+                  }
+                }}
                 className="text-terminal-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-terminal-accent file:text-terminal cursor-pointer"
               />
             </div>
@@ -595,7 +675,15 @@ export const QuizCreator: React.FC = () => {
                 type="file"
                 accept="audio/*"
                 multiple
-                onChange={(e) => handleMediaUpload(e, 'audio')}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleMediaUpload(Array.from(e.target.files).map(file => ({
+                      name: file.name,
+                      type: 'audio' as const,
+                      data: URL.createObjectURL(file)
+                    })));
+                  }
+                }}
                 className="text-terminal-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-terminal-accent file:text-terminal cursor-pointer"
               />
             </div>
@@ -661,13 +749,17 @@ export const QuizCreator: React.FC = () => {
                       
                       <div className="flex gap-2">
                         <button
-                          onClick={() => copyMediaReference(idx, media.type)}
+                          onClick={() => {
+                            const ref = `[${media.type === 'image' ? 'img' : 'audio'}:${idx + 1}]`;
+                            navigator.clipboard.writeText(ref);
+                            toast.success(`Copied ${ref} to clipboard!`);
+                          }}
                           className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 px-3 py-1 rounded text-xs font-medium border border-blue-500/30"
                         >
                           📋 Copy [{media.type === 'image' ? 'img' : 'audio'}:{idx + 1}]
                         </button>
                         <button
-                          onClick={() => deleteMedia(idx)}
+                          onClick={() => handleMediaDelete(idx)}
                           className="bg-red-600/20 hover:bg-red-600/30 text-red-300 px-3 py-1 rounded text-xs font-medium border border-red-500/30"
                         >
                           🗑️ Delete
@@ -827,7 +919,7 @@ export const QuizCreator: React.FC = () => {
             {/* Advanced Features Section */}
             <div className="space-y-4 border-t border-terminal-accent/30 pt-6 mt-6">
               <div className="flex items-center justify-between">
-                <div className="text-lg font-bold text-terminal-bright">🔧 Advanced Features</div>
+                <div className="text-lg font-bold text-terminal-bright">🔧 Advanced Customization</div>
                 <button
                   onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
                   className="flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 py-2 px-4 rounded font-medium transition-colors"
@@ -835,603 +927,177 @@ export const QuizCreator: React.FC = () => {
                   {showAdvancedSettings ? '🔼 Hide Advanced' : '🔽 Show Advanced'}
                 </button>
               </div>
-              
-              <div className="text-sm text-terminal-dim space-y-1 mb-4">
-                <div>• <strong>Question Limit:</strong> Randomly select a subset of questions</div>
-                <div>• <strong>Multi-Quiz Mode:</strong> Combine questions from multiple existing quizzes</div>
-                <div>• <strong>Access Control:</strong> Set private access codes and edit permissions</div>
-                <div>• <strong>Time Controls:</strong> Configure quiz and per-question time limits</div>
-              </div>
 
               {showAdvancedSettings && (
-                <div className="space-y-6">
-              
-              {/* Question Limit */}
-              <div className="bg-terminal-accent/5 border border-terminal-accent/20 rounded-lg p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">🎯</span>
-                  <div>
-                    <div className="font-bold text-terminal-bright">Question Limit</div>
-                    <div className="text-sm text-terminal-dim">Limit how many questions to include when randomizing</div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <input
-                    type="text"
-                    value={quizState.customQuestionLimit || ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === "") {
-                        quizActions.setCustomQuestionLimit(null);
-                      } else if (/^\\d+$/.test(value)) {
-                        const num = parseInt(value);
-                        if (num >= 1) {
-                          quizActions.setCustomQuestionLimit(num);
-                        }
-                      }
-                    }}
-                    className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-3 py-2 rounded w-24"
-                    placeholder="All"
-                  />
-                  <span className="text-terminal-dim">
-                    questions {quizState.customQuestionLimit ? `(out of total)` : '(use all questions)'}
-                  </span>
-                </div>
-                <div className="text-xs text-orange-400 mt-2">
-                  ⚠️ Requires "Randomize question order" to be enabled
-                </div>
-              </div>
-
-              {/* Multi-Quiz Merging */}
-              <div className="bg-terminal-accent/5 border border-terminal-accent/20 rounded-lg p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">🔗</span>
-                  <div>
-                    <div className="font-bold text-terminal-bright">Multi-Quiz Merging</div>
-                    <div className="text-sm text-terminal-dim">Combine questions from multiple existing quizzes</div>
-                  </div>
-                </div>
-                
-                <label className="flex items-center gap-2 mb-4">
-                  <input
-                    type="checkbox"
-                    id="multiQuizMode"
-                    checked={multiQuizState.multiQuizMode}
-                    onChange={(e) => multiQuizActions.setMultiQuizMode(e.target.checked)}
-                    className="accent-terminal-accent scale-125"
-                  />
-                  <span className="font-medium">Enable Multi-Quiz Mode</span>
-                </label>
-
-                {multiQuizState.multiQuizMode && (
-                  <div className="mb-4">
-                    <label className="flex items-center gap-2">
+                <div className="space-y-6 mt-6">
+                  {/* Multi-Quiz Mode */}
+                  <div className="bg-terminal-accent/5 border border-terminal-accent/20 rounded-lg p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-2xl">🔗</span>
+                      <div>
+                        <div className="font-bold text-terminal-bright">Multi-Quiz Composition</div>
+                        <div className="text-sm text-terminal-dim">Combine questions from multiple quizzes</div>
+                      </div>
+                    </div>
+                    
+                    <label className="flex items-center gap-2 mb-4">
                       <input
                         type="checkbox"
-                        checked={multiQuizState.preserveQuizOrder}
-                        onChange={(e) => multiQuizActions.setPreserveQuizOrder(e.target.checked)}
-                        className="accent-terminal-accent scale-110"
+                        checked={multiQuizState.multiQuizMode}
+                        onChange={(e) => multiQuizActions.setMultiQuizMode(e.target.checked)}
+                        className="accent-terminal-accent scale-125"
                       />
-                      <span className="font-medium text-blue-300">🔄 Preserve Quiz Order</span>
+                      <span className="font-medium">Enable Multi-Quiz Mode</span>
                     </label>
-                    <div className="text-xs text-terminal-dim mt-1 ml-6 space-y-1">
-                      <div>✅ <strong>Enabled:</strong> [Q1 shuffled, Q2 shuffled, Q3 shuffled] - questions stay in quiz groups</div>
-                      <div>❌ <strong>Disabled:</strong> [Q1, Q3, Q2 mixed] - fully random mix across all sources</div>
-                    </div>
-                  </div>
-                )}
 
-                {multiQuizState.multiQuizMode && (
-                  <div className="space-y-4 border border-yellow-500/30 bg-yellow-500/5 rounded p-4">
-                    <div className="flex items-center gap-2 text-yellow-300 font-medium">
-                      <span>⚡</span>
-                      <span>Quiz Sources Configuration</span>
-                    </div>
-                    
-                    {multiQuizState.quizSources.length === 0 ? (
-                      <div className="text-center py-4 text-terminal-dim">
-                        <div className="text-2xl mb-2">📝</div>
-                        <div>No quiz sources added yet</div>
-                        <div className="text-xs">Click "Add First Quiz Source" to get started</div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {multiQuizState.quizSources.map((source, idx) => (
-                          <div key={idx} className="bg-terminal-accent/10 border border-terminal-accent/30 rounded-lg p-3">
-                            <div className="flex items-center gap-3 mb-3">
-                              <span className="bg-terminal-accent/30 text-terminal-bright px-2 py-1 rounded text-xs font-bold">
-                                SOURCE #{idx + 1}
-                              </span>
-                              <button
-                                onClick={() => multiQuizActions.removeQuizSource(idx)}
-                                className="text-red-400 hover:text-red-300 hover:bg-red-500/20 px-2 py-1 rounded text-xs"
-                              >
-                                🗑️ Remove
-                              </button>
-                            </div>
-                            
-                            <div className="grid gap-3">
-                              <div>
-                                <label className="text-sm font-medium text-terminal-bright mb-1 block">Select Quiz:</label>
-                                
-                                {/* Quiz Selection Button */}
-                                <div className="space-y-2 relative">
-                                  <button
-                                    type="button"
-                                    onClick={() => multiQuizActions.openQuizPicker(idx)}
-                                    className="w-full bg-terminal border border-terminal-accent/30 text-terminal-foreground px-3 py-2 rounded hover:bg-terminal-accent/10 transition-colors text-left"
-                                  >
-                                    {source.quizId ? (
-                                      <div className="flex items-center justify-between">
-                                        <div>
-                                          <span className="text-green-400">📚 {availableQuizzes.find(q => q.id === source.quizId)?.title || 'Unknown'}</span>
-                                          <div className="text-xs text-terminal-dim">
-                                            {availableQuizzes.find(q => q.id === source.quizId)?.questions?.length || 0} questions
-                                          </div>
-                                        </div>
-                                        <span className="text-blue-400">✓</span>
-                                      </div>
-                                    ) : (
-                                      <span className="text-terminal-dim">🔍 Click to choose a quiz...</span>
-                                    )}
-                                  </button>
-                                  
-                                  {/* Quiz Picker - RIGHT HERE IN THIS SECTION */}
-                                  {multiQuizState.showQuizPicker === idx && (
-                                    <div className="mt-4 p-4 bg-terminal border border-terminal-accent rounded-lg shadow-lg">
-                                      <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-lg font-semibold text-terminal-bright">Select Quiz</h3>
-                                        <button
-                                          onClick={() => multiQuizActions.closeQuizPicker()}
-                                          className="text-terminal-dim hover:text-terminal-bright text-xl"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                      
-                                      {/* Breadcrumb Navigation */}
-                                      <div className="flex items-center gap-1 text-xs text-terminal-dim mb-3 p-2 bg-terminal-accent/5 rounded">
-                                        <button
-                                          onClick={() => multiQuizActions.setCurrentFolder('')}
-                                          className="hover:text-terminal-bright transition-colors"
-                                        >
-                                          🏠 Root
-                                        </button>
-                                        {multiQuizState.currentFolder.split('/').filter(Boolean).map((folder, folderIdx, arr) => {
-                                          const path = arr.slice(0, folderIdx + 1).join('/');
-                                          return (
-                                            <React.Fragment key={folderIdx}>
-                                              <span>/</span>
-                                              <button
-                                                onClick={() => multiQuizActions.setCurrentFolder(path)}
-                                                className="hover:text-terminal-bright transition-colors"
-                                              >
-                                                📁 {folder}
-                                              </button>
-                                            </React.Fragment>
-                                          );
-                                        })}
-                                      </div>
-                                      
-                                      {/* File Manager View */}
-                                      <div className="max-h-64 overflow-y-auto border border-terminal-accent/20 rounded bg-terminal-accent/5 p-2">
-                                        {/* Folders */}
-                                        {folders
-                                          .filter(folder => {
-                                            const folderPath = folder.parentPath || '';
-                                            return folderPath === multiQuizState.currentFolder;
-                                          })
-                                          .map(folder => {
-                                            const fullPath = folder.parentPath ? `${folder.parentPath}/${folder.name}` : folder.name;
-                                            return (
-                                              <div
-                                                key={folder.id}
-                                                onClick={() => multiQuizActions.setCurrentFolder(fullPath)}
-                                                className="flex items-center gap-3 p-2 hover:bg-terminal-accent/20 rounded cursor-pointer transition-colors"
-                                              >
-                                                <span className="text-lg">📂</span>
-                                                <div className="flex-1">
-                                                  <div className="font-medium text-terminal-bright text-sm">{folder.name}</div>
-                                                  <div className="text-xs text-terminal-dim">Folder</div>
-                                                </div>
-                                              </div>
-                                            );
-                                          })
-                                        }
-                                        
-                                        {/* Quizzes */}
-                                        {availableQuizzes
-                                          .filter(quiz => {
-                                            const quizFolderPath = quiz.folderPath || '';
-                                            return quizFolderPath === multiQuizState.currentFolder;
-                                          })
-                                          .map(quiz => (
-                                            <div
-                                              key={quiz.id}
-                                              onClick={() => multiQuizActions.selectQuizForSource(idx, quiz)}
-                                              className="flex items-center gap-3 p-2 hover:bg-terminal-accent/20 rounded cursor-pointer transition-colors hover:border-blue-400/50 hover:bg-blue-500/10"
-                                            >
-                                              <span className="text-lg">📚</span>
-                                              <div className="flex-1">
-                                                <div className="font-medium text-terminal-bright text-sm">{quiz.title}</div>
-                                                <div className="text-xs text-terminal-dim">{quiz.questions?.length || 0} questions</div>
-                                              </div>
-                                              <div className="text-xs text-terminal-dim bg-terminal-accent/20 px-2 py-1 rounded">
-                                                Select
-                                              </div>
-                                            </div>
-                                          ))
-                                        }
-                                        
-                                        {/* Empty folder message */}
-                                        {folders.filter(f => (f.parentPath || '') === multiQuizState.currentFolder).length === 0 &&
-                                         availableQuizzes.filter(q => (q.folderPath || '') === multiQuizState.currentFolder).length === 0 && (
-                                          <div className="text-center p-8 text-terminal-dim">
-                                            <div className="text-4xl mb-2">📁</div>
-                                            <div>This folder is empty</div>
-                                          </div>
-                                        )}
-                                      </div>
-                                      
-                                      <div className="mt-4 text-xs text-terminal-dim text-center">
-                                        Click on folders to navigate, click on quizzes to select
-                                      </div>
-                                    </div>
-                                  )}
-                                  
-                                  {/* Clear Selection Button */}
-                                  {source.quizId && (
-                                    <button
-                                      type="button"
-                                      onClick={() => multiQuizActions.updateQuizSource(idx, { quizId: '', sectionName: '' })}
-                                      className="text-xs text-red-400 hover:text-red-300 underline"
-                                    >
-                                      Clear selection
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div>
-                                <label className="text-sm font-medium text-terminal-bright mb-1 block">
-                                  Section Name:
-                                </label>
-                                <input
-                                  type="text"
-                                  value={source.sectionName || ''}
-                                  onChange={(e) => multiQuizActions.updateQuizSource(idx, { sectionName: e.target.value })}
-                                  placeholder={source.quizId ? availableQuizzes.find(q => q.id === source.quizId)?.title || 'Section Name' : 'Section Name'}
-                                  className="w-full bg-terminal border border-terminal-accent/30 text-terminal-foreground px-3 py-2 rounded"
-                                />
-                                <div className="text-xs text-terminal-dim mt-1">
-                                  {source.quizId ? (
-                                    <span>Auto-populated from quiz: "{availableQuizzes.find(q => q.id === source.quizId)?.title}" (you can edit this)</span>
-                                  ) : (
-                                    <span>Will be auto-populated when you select a quiz</span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1">
-                                  <label className="text-sm font-medium text-terminal-bright mb-1 block">
-                                    {source.fixedCount ? 'Exact Questions:' : 'Minimum Questions:'}
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={source.minQuestions || ""}
-                                    onChange={(e) => {
-                                      const value = e.target.value;
-                                      
-                                      // Allow empty string or digits (including 0)
-                                      if (value === "" || /^\d*$/.test(value)) {
-                                        if (value === "") {
-                                          multiQuizActions.updateQuizSource(idx, { minQuestions: "" });
-                                        } else {
-                                          const val = parseInt(value) || 0;
-                                          const updates: any = { minQuestions: val };
-                                          if (multiQuizState.quizSources[idx].fixedCount) {
-                                            updates.maxQuestions = val;
-                                          }
-                                          multiQuizActions.updateQuizSource(idx, updates);
-                                        }
-                                      }
-                                    }}
-                                    onBlur={() => {
-                                      // On blur, ensure minimum value of 1
-                                      const source = multiQuizState.quizSources[idx];
-                                      if (!source.minQuestions || source.minQuestions < 1) {
-                                        const updates: any = { minQuestions: 1 };
-                                        if (source.fixedCount) {
-                                          updates.maxQuestions = 1;
-                                        }
-                                        multiQuizActions.updateQuizSource(idx, updates);
-                                      }
-                                    }}
-                                    className="w-full bg-terminal border border-terminal-accent/30 text-terminal-foreground px-3 py-2 rounded"
-                                    placeholder="1"
-                                  />
-                                </div>
-                                
-                                {!source.fixedCount && (
-                                  <div className="flex-1">
-                                    <label className="text-sm font-medium text-terminal-bright mb-1 block">Maximum Questions:</label>
-                                    <input
-                                      type="text"
-                                      value={source.maxQuestions || ""}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        
-                                        // Allow empty string or digits (including 0)
-                                        if (value === "" || /^\d*$/.test(value)) {
-                                          if (value === "") {
-                                            multiQuizActions.updateQuizSource(idx, { maxQuestions: "" });
-                                          } else {
-                                            const val = parseInt(value) || 0;
-                                            multiQuizActions.updateQuizSource(idx, { maxQuestions: val });
-                                          }
-                                        }
-                                      }}
-                                      onBlur={() => {
-                                        // On blur, ensure minimum value based on minQuestions
-                                        const source = multiQuizState.quizSources[idx];
-                                        const minVal = Math.max(source.minQuestions || 1, 1);
-                                        if (!source.maxQuestions || source.maxQuestions < minVal) {
-                                          multiQuizActions.updateQuizSource(idx, { maxQuestions: minVal });
-                                        }
-                                      }}
-                                      className="w-full bg-terminal border border-terminal-accent/30 text-terminal-foreground px-3 py-2 rounded"
-                                      placeholder="5"
-                                    />
-                                  </div>
-                                )}
-                                
-                                <div className="flex flex-col items-center gap-2">
-                                  <label className="text-xs font-medium text-terminal-bright">Fixed Count?</label>
-                                  <label className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={source.fixedCount}
-                                      onChange={(e) => {
-                                        const updates: any = { fixedCount: e.target.checked };
-                                        if (e.target.checked) {
-                                          updates.maxQuestions = multiQuizState.quizSources[idx].minQuestions;
-                                        }
-                                        multiQuizActions.updateQuizSource(idx, updates);
-                                      }}
-                                      className="accent-terminal-accent scale-125"
-                                    />
-                                    <span className="text-xs text-terminal-dim">
-                                      {source.fixedCount ? '📌 Exact' : '🎲 Range'}
-                                    </span>
-                                  </label>
-                                </div>
-                              </div>
-                              
-                              {source.quizId && (() => {
-                                const sourceQuiz = availableQuizzes.find(q => q.id === source.quizId);
-                                const totalQuestions = sourceQuiz?.questions?.length || 0;
-                                const minQuestions = typeof source.minQuestions === 'string' ? parseInt(source.minQuestions) || 0 : source.minQuestions;
-                                const maxQuestions = typeof source.maxQuestions === 'string' ? parseInt(source.maxQuestions) || 0 : source.maxQuestions;
-                                
-                                // Fixed validation: only check individual source limits, not combined totals
-                                const isValidMin = minQuestions <= totalQuestions && minQuestions > 0;
-                                const isValidMax = maxQuestions <= totalQuestions && maxQuestions >= minQuestions;
-                                const isValid = isValidMin && isValidMax;
-                                
-                                return (
-                                  <div className={`text-xs p-2 rounded border ${
-                                    isValid 
-                                      ? 'text-green-300 bg-green-500/10 border-green-500/30' 
-                                      : 'text-red-300 bg-red-500/10 border-red-500/30'
-                                  }`}>
-                                    {isValid ? (
-                                      <>
-                                        ✅ Will include {source.fixedCount ? 
-                                          `exactly ${minQuestions}` : 
-                                          `${minQuestions}-${maxQuestions}`} 
-                                        questions from this quiz (has {totalQuestions} total)
-                                      </>
-                                    ) : (
-                                      <>
-                                        ❌ Invalid range: Quiz "{sourceQuiz?.title}" has only {totalQuestions} questions. 
-                                        {!isValidMin && minQuestions > totalQuestions && (
-                                          <> Minimum ({minQuestions}) is too high.</>
-                                        )}
-                                        {!isValidMax && maxQuestions > totalQuestions && (
-                                          <> Maximum ({maxQuestions}) is too high.</>
-                                        )}
-                                        {minQuestions > maxQuestions && (
-                                          <> Min cannot be greater than max.</>
-                                        )}
-                                        {minQuestions < 1 && (
-                                          <> Minimum must be at least 1.</>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        ))}
+                    {multiQuizState.multiQuizMode && (
+                      <div className="mb-4">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={multiQuizState.preserveQuizOrder}
+                            onChange={(e) => multiQuizActions.setPreserveQuizOrder(e.target.checked)}
+                            className="accent-terminal-accent scale-110"
+                          />
+                          <span className="font-medium text-blue-300">🔄 Preserve Quiz Order</span>
+                        </label>
+                        <div className="text-xs text-terminal-dim mt-1 ml-6 space-y-1">
+                          <div>✅ <strong>Enabled:</strong> Questions stay grouped by source quiz</div>
+                          <div>❌ <strong>Disabled:</strong> Fully random mix across all sources</div>
+                        </div>
                       </div>
                     )}
-                    
-                    <button
-                      onClick={multiQuizActions.addQuizSource}
-                      className="w-full bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-300 py-2 px-4 rounded font-medium"
-                    >
-                      ➕ {multiQuizState.quizSources.length === 0 ? 'Add First Quiz Source' : 'Add Another Quiz Source'}
-                    </button>
-                    
-                    {multiQuizState.quizSources.length > 0 && (() => {
-                      const { totalMinQuestions, totalMaxQuestions } = multiQuizActions.getTotalQuestionRange();
-                      
-                      // Check if all sources are valid
-                      const allSourcesValid = multiQuizActions.validateQuizSources(availableQuizzes).length === 0;
-                      
-                      const isQuestionLimitValid = !quizState.customQuestionLimit || quizState.customQuestionLimit >= totalMinQuestions;
-                      
-                      return (
-                        <div className={`border p-3 rounded ${
-                          allSourcesValid && isQuestionLimitValid
-                            ? 'bg-blue-500/10 border-blue-500/30' 
-                            : 'bg-red-500/10 border-red-500/30'
-                        }`}>
-                          <div className={`font-medium mb-2 ${
-                            allSourcesValid && isQuestionLimitValid 
-                              ? 'text-blue-300' 
-                              : 'text-red-300'
-                          }`}>
-                            {allSourcesValid && isQuestionLimitValid ? '📊 Total Questions Summary:' : '⚠️ Configuration Issues:'}
+
+                    {multiQuizState.multiQuizMode && (
+                      <QuizSourceManager
+                        quizSources={multiQuizState.quizSources}
+                        availableQuizzes={availableQuizzes}
+                        folders={folders}
+                        showQuizPicker={multiQuizState.showQuizPicker}
+                        currentFolder={multiQuizState.currentFolder}
+                        onAddSource={multiQuizActions.addQuizSource}
+                        onRemoveSource={multiQuizActions.removeQuizSource}
+                        onUpdateSource={multiQuizActions.updateQuizSource}
+                        onOpenPicker={multiQuizActions.openQuizPicker}
+                        onClosePicker={multiQuizActions.closeQuizPicker}
+                        onFolderChange={multiQuizActions.setCurrentFolder}
+                        onQuizSelect={multiQuizActions.selectQuizForSource}
+                      />
+                    )}
+                  </div>
+                  
+
+                    {/* Other Advanced Settings */}
+                    <div className="space-y-6">
+                      {/* Access Control */}
+                      <div className="bg-terminal-accent/5 border border-terminal-accent/20 rounded-lg p-4">
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="text-2xl">🔐</span>
+                          <div>
+                            <div className="font-bold text-terminal-bright">Access Control</div>
+                            <div className="text-sm text-terminal-dim">Configure privacy settings and edit permissions</div>
                           </div>
-                          
-                          {!allSourcesValid && (
-                            <div className="text-sm text-red-400 mb-2">
-                              ❌ Some quiz sources have invalid ranges. Fix them above.
-                            </div>
-                          )}
-                          
-                          {!isQuestionLimitValid && (
-                            <div className="text-sm text-red-400 mb-2">
-                              ❌ Question limit ({quizState.customQuestionLimit}) is less than minimum required ({totalMinQuestions})
-                            </div>
-                          )}
-                          
-                          <div className="text-sm text-terminal-dim">
-                            Minimum: <span className={`font-bold ${allSourcesValid ? 'text-green-400' : 'text-red-400'}`}>
-                              {totalMinQuestions}
-                            </span> questions
-                          </div>
-                          <div className="text-sm text-terminal-dim">
-                            Maximum: <span className={`font-bold ${allSourcesValid ? 'text-blue-400' : 'text-red-400'}`}>
-                              {totalMaxQuestions}
-                            </span> questions
-                          </div>
-                          {quizState.customQuestionLimit && (
-                            <div className={`text-sm mt-1 ${isQuestionLimitValid ? 'text-yellow-400' : 'text-red-400'}`}>
-                              {isQuestionLimitValid ? '⚠️' : '❌'} Final quiz will be limited to {quizState.customQuestionLimit} questions
-                            </div>
-                          )}
-                          
-                          {allSourcesValid && isQuestionLimitValid && (
-                            <div className="text-sm text-green-400 mt-1">
-                              ✅ Ready to create multi-quiz!
-                            </div>
-                          )}
                         </div>
-                      );
-                    })()}
+                        
+                        <div className="space-y-4">
+                          {!quizState.isPublic && (
+                            <div className="border border-terminal-accent/30 bg-terminal-accent/5 rounded p-3 space-y-2">
+                              <div className="text-terminal-bright text-sm font-medium">📋 Private Quiz Access Code</div>
+                              <div className="text-terminal-dim text-xs">
+                                Share this code with specific users to grant them access to your private quiz.
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">Access code:</span>
+                                <input
+                                  type="text"
+                                  value={quizState.accessCode}
+                                  onChange={(e) => quizActions.setAccessCode(e.target.value)}
+                                  className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded w-32"
+                                  placeholder="e.g., MATH101"
+                                />
+                                <button
+                                  onClick={quizActions.generateAccessCode}
+                                  className="bg-terminal-accent/20 hover:bg-terminal-accent/30 text-terminal-foreground px-3 py-1 rounded text-sm"
+                                >
+                                  Generate
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            <span>Edit mode:</span>
+                            <select
+                              value={quizState.editMode}
+                              onChange={(e) => quizActions.setEditMode(e.target.value as 'no_edits' | 'pull_requests')}
+                              className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded"
+                            >
+                              <option value="no_edits">No edits accepted</option>
+                              <option value="pull_requests">Pull requests accepted</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Time Controls */}
+                      <div className="bg-terminal-accent/5 border border-terminal-accent/20 rounded-lg p-4">
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="text-2xl">⏱️</span>
+                          <div>
+                            <div className="font-bold text-terminal-bright">Time Controls</div>
+                            <div className="text-sm text-terminal-dim">Set quiz-wide or per-question time limits</div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span>Per-question time limit (seconds):</span>
+                            <input
+                              type="text"
+                              value={quizState.perQuestionTimeLimit}
+                              onChange={(e) => quizActions.setPerQuestionTimeLimit(e.target.value)}
+                              className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded w-24"
+                              placeholder="None"
+                            />
+                            <span className="text-terminal-dim text-sm">
+                              Each question gets this time limit (disables navigation back)
+                            </span>
+                            {quizState.perQuestionTimeLimit && parseInt(quizState.perQuestionTimeLimit) > 0 && (
+                              <span className="text-green-400 text-sm ml-2">
+                                ≈ {Math.ceil((parseInt(quizState.perQuestionTimeLimit) * (getParsedQuestions()?.length || 0)) / 60)}min total
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
-              
-                {/* Access Control */}
-                <div className="bg-terminal-accent/5 border border-terminal-accent/20 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl">🔒</span>
-                    <div>
-                      <div className="font-bold text-terminal-bright">Access Control</div>
-                      <div className="text-sm text-terminal-dim">Configure privacy settings and edit permissions</div>
-                    </div>
-                  </div>
-                  
-                  {!quizState.isPublic && (
-                    <div className="border border-terminal-accent/30 bg-terminal-accent/5 rounded p-3 space-y-2 mb-4">
-                      <div className="text-terminal-bright text-sm font-medium">📋 Private Quiz Access Code</div>
-                      <div className="text-terminal-dim text-xs">
-                        Share this code with specific users to grant them access to your private quiz.
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">Access code:</span>
-                        <input
-                          type="text"
-                          value={quizState.accessCode}
-                          onChange={(e) => quizActions.setAccessCode(e.target.value)}
-                          className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded w-32"
-                          placeholder="e.g., MATH101"
-                        />
-                        <button
-                          onClick={quizActions.generateAccessCode}
-                          className="bg-terminal-accent/20 hover:bg-terminal-accent/30 text-terminal-foreground px-3 py-1 rounded text-sm"
-                        >
-                          Generate
-                        </button>
-                      </div>
-                    </div>
-                  )}
 
-                  <div className="flex items-center gap-2">
-                    <span>Edit mode:</span>
-                    <select
-                      value={quizState.editMode}
-                      onChange={(e) => quizActions.setEditMode(e.target.value as 'no_edits' | 'pull_requests')}
-                      className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded"
+              {/* Live Preview Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowPreview(!showPreview)}
+                      className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 py-2 px-4 rounded font-medium transition-colors"
                     >
-                      <option value="no_edits">No edits accepted</option>
-                      <option value="pull_requests">Pull requests accepted</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Time Controls */}
-                <div className="bg-terminal-accent/5 border border-terminal-accent/20 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl">⏱️</span>
-                    <div>
-                      <div className="font-bold text-terminal-bright">Time Controls</div>
-                      <div className="text-sm text-terminal-dim">Set quiz-wide or per-question time limits</div>
+                      {showPreview ? '👁️ Hide Preview' : '🎯 Show Live Preview'}
+                    </button>
+                    <div className="text-sm text-terminal-dim">
+                      Preview matches actual quiz rendering 100%
                     </div>
                   </div>
                   
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span>Per-question time limit (seconds):</span>
-                      <input
-                        type="text"
-                        value={quizState.perQuestionTimeLimit}
-                        onChange={(e) => quizActions.setPerQuestionTimeLimit(e.target.value)}
-                        className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded w-24"
-                        placeholder="None"
-                      />
-                      <span className="text-terminal-dim text-sm">
-                        Each question gets this time limit (disables navigation back)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Live Preview Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowPreview(!showPreview)}
-                className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 py-2 px-4 rounded font-medium transition-colors"
-              >
-                {showPreview ? '👁️ Hide Preview' : '🎯 Show Live Preview'}
-              </button>
-              <div className="text-sm text-terminal-dim">
-                Preview matches actual quiz rendering 100%
-              </div>
-            </div>
-            
-            {showPreview && (
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-terminal-bright">Image Size:</span>
-                <select
-                  value={quizState.imageSize}
-                  onChange={(e) => quizActions.setImageSize(e.target.value as 'small' | 'medium' | 'large' | 'xlarge')}
-                  className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded"
-                >
-                  <option value="small">Small (150px)</option>
+                  {showPreview && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-terminal-bright">Image Size:</span>
+                      <select
+                        value={quizState.imageSize}
+                        onChange={(e) => quizActions.setImageSize(e.target.value as 'small' | 'medium' | 'large' | 'xlarge')}
+                        className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded"
+                      >
+                        <option value="small">Small (150px)</option>
                   <option value="medium">Medium (300px)</option>
                   <option value="large">Large (450px)</option>
                   <option value="xlarge">X-Large (600px)</option>
@@ -1458,6 +1124,8 @@ export const QuizCreator: React.FC = () => {
             🔧 advanced settings
           </TerminalButton>
           <TerminalButton onClick={() => navigate(editQuizId ? "/my-quizzes" : "/dashboard")}>cancel</TerminalButton>
+        </div>
+          </div>
         </div>
 
         <div className="mt-8 border-t border-terminal-accent/30 pt-4">
@@ -1492,9 +1160,9 @@ export const QuizCreator: React.FC = () => {
             <div>• <span className="text-terminal-accent">Question timer</span>: Set "Per-question time limit" → same time for each question, no revisits</div>
           </div>
         </div>
+        </div>
       </div>
 
-            
     </Terminal>
   );
 };

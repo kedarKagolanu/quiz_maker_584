@@ -6,6 +6,7 @@ import { storage } from "@/lib/storage";
 import { Quiz, QuizFolder } from "@/types/quiz";
 import { toast } from "sonner";
 import { Copy, Edit, Trash2, Folder, FolderOpen, ChevronRight, Send } from "lucide-react";
+import { QuizQuestionCount } from "@/components/QuizQuestionCount";
 
 export const MyQuizzes: React.FC = () => {
   const { user } = useAuth();
@@ -288,7 +289,7 @@ export const MyQuizzes: React.FC = () => {
             <div key={quiz.id} className="border border-terminal-accent/30 p-4 rounded space-y-2">
               <div className="text-terminal-bright text-lg">{quiz.title}</div>
               <div className="text-sm text-terminal-dim space-y-1">
-                <div>Questions: {quiz.questions.length}</div>
+                <div>Questions: <QuizQuestionCount quiz={quiz} showSourceInfo={false} /></div>
                 <div>Visibility: {quiz.isPublic ? "Public" : "Private"}</div>
                 {quiz.timeLimit && <div>Time Limit: {quiz.timeLimit}s</div>}
                 <div>Randomize: {quiz.randomize ? "Yes" : "No"}</div>
