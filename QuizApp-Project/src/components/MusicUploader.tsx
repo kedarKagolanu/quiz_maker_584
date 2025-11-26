@@ -79,7 +79,7 @@ export const MusicUploader: React.FC = () => {
     } catch (error) {
       toast.dismiss();
       toast.error('Failed to upload music. Please try again.');
-      console.error('Music upload error:', error);
+
     }
 
     // Reset input

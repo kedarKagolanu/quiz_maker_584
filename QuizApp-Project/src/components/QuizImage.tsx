@@ -11,7 +11,7 @@ export const QuizImage: React.FC<QuizImageProps> = ({ src, alt, index }) => {
   const [loading, setLoading] = React.useState(true);
 
   const handleError = () => {
-    console.error(`Failed to load image ${index}:`, src);
+
     setImageError(true);
     setLoading(false);
   };

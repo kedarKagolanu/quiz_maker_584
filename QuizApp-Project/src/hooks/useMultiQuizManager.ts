@@ -180,7 +180,7 @@ export const useMultiQuizManager = () => {
             totalMaxQuestions += maxQuestions;
           }
         } catch (error) {
-          console.error(`Error getting question count for source ${source.quizId}:`, error);
+
           // Fallback to configured values
           totalMinQuestions += minQuestions;
           totalMaxQuestions += maxQuestions;

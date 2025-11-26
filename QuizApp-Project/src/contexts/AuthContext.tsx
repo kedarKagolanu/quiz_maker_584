@@ -91,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Silent failure - admin check is not critical for app functionality
       // Error details only logged in development mode
       if (import.meta.env.DEV) {
-        console.error('Error checking admin status:', error);
+
       }
     }
   };
@@ -165,8 +165,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         redirectUrl = `https://${window.location.hostname}/reset-password`;
       }
       
-      console.log('🔗 Sending reset email with redirect URL:', redirectUrl);
-      console.log('🌐 Current location:', window.location.href);
+
+
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
@@ -177,14 +177,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        console.error('❌ Reset password error:', error);
+
         return { success: false, error: error.message };
       }
 
-      console.log('✅ Reset password email sent successfully');
+
       return { success: true };
     } catch (error) {
-      console.error('❌ Reset password exception:', error);
+
       return { success: false, error: "An unexpected error occurred" };
     }
   };

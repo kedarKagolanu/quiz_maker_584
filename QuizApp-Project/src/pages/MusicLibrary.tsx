@@ -120,7 +120,7 @@ export const MusicLibrary: React.FC = () => {
       toast.success(`Music uploaded successfully in ${uploadTime.toFixed(1)}s!`);
 
     } catch (error) {
-      console.error("Failed to upload music:", error);
+
       toast.error("Failed to upload music");
     } finally {
       setUploading(false);

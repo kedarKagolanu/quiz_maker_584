@@ -22,18 +22,10 @@ export const ResetPassword: React.FC = () => {
       const error = searchParams.get('error');
       const errorDescription = searchParams.get('error_description');
 
-      console.log('🔍 Reset password URL params:', {
-        accessToken: accessToken ? 'present' : 'missing',
-        refreshToken: refreshToken ? 'present' : 'missing',
-        type,
-        error,
-        errorDescription,
-        fullURL: window.location.href
-      });
 
       // Check for error params first
       if (error) {
-        console.error('❌ Reset password error:', error, errorDescription);
+
         toast.error(`Reset failed: ${errorDescription || error}`);
         setTimeout(() => navigate('/auth'), 3000);
         setIsChecking(false);
@@ -43,35 +35,35 @@ export const ResetPassword: React.FC = () => {
       if (type === 'recovery' && accessToken && refreshToken) {
         if (supabase) {
           try {
-            console.log('🔄 Setting session with tokens...');
+
             const { data, error } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
 
-            console.log('✅ Session set result:', { data: !!data, error: error?.message });
+
 
             if (!error && data.session) {
-              console.log('✅ Valid reset token, user authenticated');
+
               setIsValidToken(true);
               toast.success('Reset link verified! Please set your new password.');
             } else {
-              console.error('❌ Session error:', error?.message);
+
               toast.error('Invalid or expired reset link');
               setTimeout(() => navigate('/auth'), 3000);
             }
           } catch (error) {
-            console.error('❌ Exception setting session:', error);
+
             toast.error('Invalid reset link');
             setTimeout(() => navigate('/auth'), 3000);
           }
         } else {
-          console.error('❌ Supabase not configured');
+
           toast.error('Database not configured');
           setTimeout(() => navigate('/auth'), 3000);
         }
       } else {
-        console.error('❌ Missing required parameters:', { type, accessToken: !!accessToken, refreshToken: !!refreshToken });
+
         toast.error('Invalid reset link - missing required parameters');
         setTimeout(() => navigate('/auth'), 3000);
       }

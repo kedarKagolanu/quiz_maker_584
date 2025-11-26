@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+QuizApp-Project/node_modules
+QuizApp-Project/dist
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

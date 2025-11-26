@@ -19,7 +19,7 @@ const ThemeHammer: React.FC = () => {
   // Removed excessive logging - only log on changes, not every 2 seconds
   useEffect(() => {
     if (import.meta.env.DEV) {
-      console.log('🔨 Theme Changed:', { mode, preset, gradientEnabled, brightness });
+
     }
   }, [mode, preset, gradientEnabled, brightness]);
   
@@ -234,7 +234,7 @@ export const Dashboard: React.FC = () => {
         const counts = await getDisplayQuestionCounts(accessibleQuizzes, storage);
         setQuestionCounts(counts);
       } catch (error) {
-        console.error("Error getting question counts:", error);
+
         // Fallback to direct question counts
         const fallbackCounts = new Map();
         accessibleQuizzes.forEach(quiz => {

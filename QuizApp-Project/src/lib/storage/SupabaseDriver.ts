@@ -34,8 +34,7 @@ export class SupabaseDriver implements IStorageDriver {
    */
   private handleDbError(error: any, operation: string): never {
     // Always log errors for debugging
-    console.error(`🚨 DB ${operation} error:`, error);
-    console.error('Error details:', {
+    console.error(`Database error in ${operation}:`, {
       message: error.message,
       details: error.details,
       hint: error.hint,
@@ -97,7 +96,7 @@ export class SupabaseDriver implements IStorageDriver {
     
     // If both are set, prioritize perQuestionTimeLimit (more specific)
     if (timeLimit && perQuestionTimeLimit) {
-      console.warn('⚠️ Both timeLimit and perQuestionTimeLimit set, clearing timeLimit');
+
       timeLimit = null;
     }
     
@@ -610,17 +609,17 @@ export class SupabaseDriver implements IStorageDriver {
         .order('createdAt', { ascending: false });
       
       if (allError) {
-        console.error('❌ Failed to fetch all chat groups:', allError);
+
         throw allError;
       }
       
-      console.log('📊 All chat groups from database:', allData);
+
       
       const groups = (allData || []).map(this.mapChatGroupFromDb.bind(this));
       return groups;
       
     } catch (error) {
-      console.error('❌ All chat groups fetch error:', error);
+
       return [];
     }
   }
@@ -628,11 +627,11 @@ export class SupabaseDriver implements IStorageDriver {
   // Chat operations
   async getChatGroups(): Promise<ChatGroup[]> {
     if (!this.currentUserId) {
-      console.log('❌ No currentUserId for chat groups');
+
       return [];
     }
     
-    console.log('🔍 Fetching chat groups for user:', this.currentUserId);
+
     
     try {
       // Get current user info to check different ID formats
@@ -642,7 +641,7 @@ export class SupabaseDriver implements IStorageDriver {
         userIdentifiers.push(currentUser.username);
       }
       
-      console.log('👤 User identifiers to check:', userIdentifiers);
+
       
       // Get all groups first and filter manually for better debugging
       const { data: allData, error: allError } = await this.supabase
@@ -651,11 +650,11 @@ export class SupabaseDriver implements IStorageDriver {
         .order('createdAt', { ascending: false });
       
       if (allError) {
-        console.error('❌ Failed to fetch all chat groups:', allError);
+
         throw allError;
       }
       
-      console.log('📊 All groups from database:', allData);
+
       
       // Filter manually to handle different ID formats
       const filteredData = (allData || []).filter(group => {
@@ -667,7 +666,7 @@ export class SupabaseDriver implements IStorageDriver {
           group.members.includes(id)
         );
         
-        console.log(`🔍 Group "${group.name}":`, {
+        console.log('Group access check:', {
           creator: group.creator,
           members: group.members,
           isCreator,
@@ -678,15 +677,15 @@ export class SupabaseDriver implements IStorageDriver {
         return isCreator || isMember;
       });
       
-      console.log('✅ Filtered groups for user:', filteredData);
+
       
       const groups = filteredData.map(this.mapChatGroupFromDb.bind(this));
-      console.log('✅ Final mapped chat groups:', groups);
+
       
       return groups;
       
     } catch (error) {
-      console.error('❌ Chat groups fetch error:', error);
+
       // Don't throw here, return empty array for graceful degradation
       return [];
     }
@@ -695,11 +694,11 @@ export class SupabaseDriver implements IStorageDriver {
   async saveChatGroup(group: ChatGroup): Promise<void> {
     try {
       const groupData = this.mapChatGroupToDb(group);
-      console.log('💾 Attempting to save chat group:', groupData);
+
       
       // Ensure members array is properly formatted as UUID array
       if (groupData.members && Array.isArray(groupData.members)) {
-        console.log('💾 Members array before save:', groupData.members);
+
       }
       
       const { data, error } = await this.supabase
@@ -708,8 +707,7 @@ export class SupabaseDriver implements IStorageDriver {
         .select('*');
       
       if (error) {
-        console.error('❌ Save chat group error:', error);
-        console.error('❌ Error details:', {
+        console.error('Chat group creation error:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -718,7 +716,7 @@ export class SupabaseDriver implements IStorageDriver {
         throw error;
       }
       
-      console.log('✅ Chat group saved successfully:', data);
+
       
       // Verify it was actually saved by reading it back
       const { data: verifyData, error: verifyError } = await this.supabase
@@ -728,13 +726,13 @@ export class SupabaseDriver implements IStorageDriver {
         .single();
       
       if (verifyError) {
-        console.error('❌ Failed to verify saved group:', verifyError);
+
       } else {
-        console.log('✅ Verified saved group:', verifyData);
+
       }
       
     } catch (error) {
-      console.error('❌ Chat group save failed:', error);
+
       this.handleDbError(error, 'save chat group');
     }
   }
@@ -849,7 +847,7 @@ export class SupabaseDriver implements IStorageDriver {
         .order('uploadedAt', { ascending: false });
       
       if (error) {
-        console.error('❌ Failed to fetch music files:', error);
+
         throw error;
       }
       
@@ -868,7 +866,7 @@ export class SupabaseDriver implements IStorageDriver {
         url: file.filePath // Add url property for compatibility with existing code
       }));
     } catch (error) {
-      console.error('❌ Music files fetch error:', error);
+
       return [];
     }
   }
@@ -882,7 +880,7 @@ export class SupabaseDriver implements IStorageDriver {
         .upload(`public/${fileName}`, file);
 
       if (uploadError) {
-        console.error('❌ File upload error:', uploadError);
+
         throw uploadError;
       }
 
@@ -911,7 +909,7 @@ export class SupabaseDriver implements IStorageDriver {
         .insert(dbData);
 
       if (dbError) {
-        console.error('❌ Database save error:', dbError);
+
         // Clean up uploaded file if database save fails
         await this.supabase.storage
           .from('music-files')
@@ -919,9 +917,9 @@ export class SupabaseDriver implements IStorageDriver {
         throw dbError;
       }
 
-      console.log('✅ Music file saved successfully:', musicFile.title);
+
     } catch (error) {
-      console.error('❌ Failed to save music file:', error);
+
       throw error;
     }
   }
@@ -952,13 +950,13 @@ export class SupabaseDriver implements IStorageDriver {
           .remove([fileData.filePath]);
 
         if (storageError) {
-          console.warn('⚠️ Storage file deletion failed:', storageError);
+
         }
       }
 
-      console.log('✅ Music file deleted successfully');
+
     } catch (error) {
-      console.error('❌ Failed to delete music file:', error);
+
       throw error;
     }
   }

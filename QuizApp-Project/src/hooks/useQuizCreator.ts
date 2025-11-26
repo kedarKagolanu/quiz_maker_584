@@ -144,10 +144,10 @@ export const useQuizCreator = () => {
 
   const loadQuizForEditing = useCallback(async (quizId: string, userId: string) => {
     try {
-      console.log('📝 Loading quiz for editing:', quizId);
+
       const quiz = await storage.getQuizById(quizId);
       if (quiz && quiz.creator === userId) {
-        console.log('✅ Quiz loaded for editing:', {
+        console.log('Loading quiz for editing:', {
           title: quiz.title,
           hasMultiQuizSources: !!quiz.multiQuizSources,
           questionsCount: quiz.questions?.length

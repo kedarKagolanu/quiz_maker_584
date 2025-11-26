@@ -167,7 +167,7 @@ export const UnifiedQuizAdvanced: React.FC = () => {
       toast.success(`Generated quiz with ${finalQuestions.length} questions!`);
       
     } catch (error) {
-      console.error("Error generating custom quiz:", error);
+
       toast.error("Failed to generate custom quiz");
     } finally {
       setIsGenerating(false);
@@ -215,7 +215,7 @@ export const UnifiedQuizAdvanced: React.FC = () => {
       toast.success("Quiz settings saved!");
       setQuiz(updatedQuiz);
     } catch (error) {
-      console.error("Error saving quiz:", error);
+
       toast.error("Failed to save settings");
     }
   };

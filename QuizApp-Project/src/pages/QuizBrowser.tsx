@@ -64,7 +64,7 @@ export const QuizBrowser: React.FC = () => {
       setAttempts(attemptsData);
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load data:", error);
+
       toast.error("Failed to load quizzes");
       setLoading(false);
     }

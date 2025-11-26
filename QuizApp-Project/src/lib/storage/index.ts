@@ -31,12 +31,12 @@ function createDriver() {
   if (supabaseUrl && supabaseAnonKey) {
     // Only log in development mode for security
     if (import.meta.env.DEV) {
-      console.log("📦 Initializing Supabase storage driver");
+
     }
     driverInstance = new SupabaseDriver(supabaseUrl, supabaseAnonKey);
   } else {
     if (import.meta.env.DEV) {
-      console.log("📦 Initializing localStorage storage driver");
+
     }
     driverInstance = new LocalStorageDriver();
   }

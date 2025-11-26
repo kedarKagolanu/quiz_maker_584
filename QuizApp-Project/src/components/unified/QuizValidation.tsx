@@ -73,7 +73,7 @@ export const QuizValidation: React.FC<QuizValidationProps> = ({
         }
       }
     } catch (error) {
-      console.error('Error loading validation:', error);
+
     } finally {
       setLoading(false);
     }
@@ -218,7 +218,7 @@ export const MultiQuizSourceValidation: React.FC<MultiQuizSourceValidationProps>
         onValidationChange?.(i, isValid, issues);
 
       } catch (error) {
-        console.error(`Error validating source ${i + 1}:`, error);
+
         const issues = [`Source ${i + 1}: Validation error occurred`];
         validations.set(i, { isValid: false, issues });
         onValidationChange?.(i, false, issues);

@@ -12,7 +12,7 @@ interface ValidationErrorDisplayProps {
   className?: string;
 }
 
-export const ValidationErrorDisplay: React.FC<ValidationErrorDisplayProps> = ({ 
+export const ValidationErrorDisplay = React.memo<ValidationErrorDisplayProps>(({ 
   errors, 
   className = "" 
 }) => {
@@ -70,7 +70,7 @@ export const ValidationErrorDisplay: React.FC<ValidationErrorDisplayProps> = ({
       ))}
     </div>
   );
-};
+});
 
 // Helper function to create validation errors
 export const createValidationError = (

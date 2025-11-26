@@ -115,7 +115,7 @@ export const Profile: React.FC = () => {
           // Validate quiz before migration
           const validation = validateInput(quizSchema, quiz);
           if (validation.success === false) {
-            console.warn(`Skipping invalid quiz ${quiz.id}:`, validation.error);
+
             continue;
           }
           await storage.saveQuiz(quiz);
@@ -151,7 +151,7 @@ export const Profile: React.FC = () => {
           // Validate folder name
           const validation = validateInput(folderNameSchema, folder.name);
           if (validation.success === false) {
-            console.warn(`Skipping invalid folder ${folder.id}:`, validation.error);
+
             continue;
           }
           await storage.saveFolder(folder);

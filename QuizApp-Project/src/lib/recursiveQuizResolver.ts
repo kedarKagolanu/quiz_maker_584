@@ -27,7 +27,7 @@ export async function getRecursiveQuestionCount(
 ): Promise<ResolvedQuizInfo> {
   // Prevent infinite recursion
   if (visitedQuizIds.has(quiz.id)) {
-    console.warn(`⚠️ Circular reference detected for quiz ${quiz.id}`);
+
     return {
       totalQuestions: 0,
       sourceTree: []
@@ -59,7 +59,7 @@ export async function getRecursiveQuestionCount(
     try {
       const sourceQuiz = await storage.getQuizById(source.quizId);
       if (!sourceQuiz) {
-        console.warn(`⚠️ Source quiz ${source.quizId} not found`);
+
         continue;
       }
 
@@ -88,7 +88,7 @@ export async function getRecursiveQuestionCount(
       });
 
     } catch (error) {
-      console.error(`❌ Error resolving source quiz ${source.quizId}:`, error);
+
     }
   }
 
@@ -125,7 +125,7 @@ export async function resolveRecursiveQuestions(
 ): Promise<Question[]> {
   // Prevent infinite recursion
   if (visitedQuizIds.has(quiz.id)) {
-    console.warn(`⚠️ Circular reference detected for quiz ${quiz.id}, skipping`);
+
     return [];
   }
 
@@ -145,7 +145,7 @@ export async function resolveRecursiveQuestions(
     try {
       const sourceQuiz = await storage.getQuizById(source.quizId);
       if (!sourceQuiz) {
-        console.warn(`⚠️ Source quiz ${source.quizId} not found`);
+
         continue;
       }
 
@@ -162,7 +162,7 @@ export async function resolveRecursiveQuestions(
       allResolvedQuestions.push(...questionsWithMetadata);
 
     } catch (error) {
-      console.error(`❌ Error resolving source quiz ${source.quizId}:`, error);
+
     }
   }
 
@@ -204,7 +204,7 @@ export async function collectAllRecursiveQuestions(
 }> {
   // Prevent infinite recursion
   if (visitedQuizIds.has(quiz.id)) {
-    console.warn(`⚠️ Circular reference detected for quiz ${quiz.id}, skipping`);
+
     return { questions: [], sections: [], media: quiz.media || [] };
   }
 
@@ -242,7 +242,7 @@ export async function collectAllRecursiveQuestions(
     try {
       const sourceQuiz = await storage.getQuizById(source.quizId);
       if (!sourceQuiz) {
-        console.warn(`⚠️ Source quiz ${source.quizId} not found`);
+
         continue;
       }
 
@@ -250,7 +250,7 @@ export async function collectAllRecursiveQuestions(
       const availableQuestions = await resolveRecursiveQuestions(sourceQuiz, storage, new Set(visitedQuizIds));
       
       if (availableQuestions.length === 0) {
-        console.warn(`⚠️ Source quiz ${source.quizId} has no available questions`);
+
         continue;
       }
 
@@ -259,7 +259,7 @@ export async function collectAllRecursiveQuestions(
       const maxQuestions = typeof source.maxQuestions === 'string' ? parseInt(source.maxQuestions) || 0 : source.maxQuestions || 0;
       const fixedCount = source.fixedCount || false;
 
-      console.log(`📚 Source ${sourceQuiz.title}: Collected ALL ${availableQuestions.length} questions (range settings stored for root-level filtering)`);
+
 
       // Take ALL questions from this source - no filtering at intermediate levels
       const selectedQuestions = [...availableQuestions];
@@ -299,10 +299,10 @@ export async function collectAllRecursiveQuestions(
 
       allQuestions.push(...questionsWithMetadata);
 
-      console.log(`✅ Added section "${source.sectionName || sourceQuiz.title}": ${questionsWithMetadata.length} questions`);
+
 
     } catch (error) {
-      console.error(`❌ Error processing source quiz ${source.quizId}:`, error);
+
     }
   }
 
@@ -331,7 +331,7 @@ export async function collectAllRecursiveQuestions(
 
   visitedQuizIds.delete(quiz.id);
 
-  console.log(`🎉 Collected ${allQuestions.length} total questions from ${sections.length} sections (NO filtering applied yet)`);
+
 
   return {
     questions: allQuestions,
@@ -369,7 +369,7 @@ export function applyRootLevelFiltering(
   const filteredQuestions: Question[] = [];
   const filteredSections = [];
 
-  console.log('🎯 Applying ROOT-LEVEL filtering to collected questions...');
+
 
   for (const section of sections) {
     const { questions: allQuestions, originalRange, totalAvailable } = section;
@@ -387,7 +387,7 @@ export function applyRootLevelFiltering(
         Math.floor(Math.random() * (actualMax - actualMin + 1)) + actualMin;
     }
 
-    console.log(`📊 Section "${section.sectionName}": ${allQuestions.length} available, selecting ${selectedCount} (range: ${actualMin}-${actualMax}, fixed: ${fixedCount})`);
+
 
     // Select questions based on order preference
     let selectedQuestions: Question[];
@@ -423,10 +423,10 @@ export function applyRootLevelFiltering(
       actualSelected: selectedQuestions.length
     });
 
-    console.log(`✅ Section "${section.sectionName}": Selected ${selectedQuestions.length} questions`);
+
   }
 
-  console.log(`🎉 ROOT-LEVEL filtering complete: ${filteredQuestions.length} questions selected from ${filteredSections.length} sections`);
+
 
   return {
     questions: filteredQuestions,
@@ -447,7 +447,7 @@ export async function getDisplayQuestionCount(
     const { getTotalLeafQuestions } = await import('./quizSourceTree');
     return await getTotalLeafQuestions(quiz, storage);
   } catch (error) {
-    console.error(`Error getting recursive question count for ${quiz.id}:`, error);
+
     // Fallback to direct question count
     return quiz.questions?.length || 0;
   }
@@ -469,7 +469,7 @@ export async function getDisplayQuestionCounts(
         const count = await getDisplayQuestionCount(quiz, storage);
         counts.set(quiz.id, count);
       } catch (error) {
-        console.error(`Error getting question count for quiz ${quiz.id}:`, error);
+
         counts.set(quiz.id, quiz.questions?.length || 0);
       }
     })

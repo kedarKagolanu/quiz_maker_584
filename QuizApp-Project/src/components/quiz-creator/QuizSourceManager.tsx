@@ -68,7 +68,7 @@ export const QuizSourceManager: React.FC<QuizSourceManagerProps> = ({
             const count = await getDisplayQuestionCount(quiz, storage);
             counts.set(quiz.id, count);
           } catch (error) {
-            console.error(`Error getting recursive count for ${quiz.id}:`, error);
+
             counts.set(quiz.id, quiz.questions?.length || 0);
           }
         })
@@ -76,7 +76,8 @@ export const QuizSourceManager: React.FC<QuizSourceManagerProps> = ({
       
       setQuestionCounts(counts);
       setLoading(false);
-      console.log(`📊 Loaded recursive question counts for ${counts.size} quizzes:`, 
+
+      console.log('Question counts loaded:', 
         Object.fromEntries(Array.from(counts.entries()).map(([id, count]) => [
           availableQuizzes.find(q => q.id === id)?.title || id, count
         ]))
@@ -121,7 +122,7 @@ export const QuizSourceManager: React.FC<QuizSourceManagerProps> = ({
           const minVal = typeof updates.minQuestions !== 'undefined' ? updates.minQuestions : updatedSource.minQuestions;
           const maxVal = typeof updates.maxQuestions !== 'undefined' ? updates.maxQuestions : updatedSource.maxQuestions;
           
-          console.log(`🔄 Real-time validation for Source ${index + 1}:`, {
+          console.log('Field update validation:', {
             field,
             newValue: value,
             minVal,
@@ -166,7 +167,7 @@ export const QuizSourceManager: React.FC<QuizSourceManagerProps> = ({
     const isLoadingCounts = loading && !questionCounts.has(sourceQuiz.id);
     
     // Debug logging for validation
-    console.log(`🔍 Validating source ${idx + 1}: Quiz "${sourceQuiz.title}" has ${totalQuestions} total questions (recursive: ${questionCounts.has(sourceQuiz.id)}, loading: ${isLoadingCounts})`);
+
     const minQuestions = typeof source.minQuestions === 'string' ? parseInt(source.minQuestions) || 0 : source.minQuestions || 0;
     const maxQuestions = typeof source.maxQuestions === 'string' ? parseInt(source.maxQuestions) || 0 : source.maxQuestions || 0;
     
@@ -400,13 +401,17 @@ export const QuizSourceManager: React.FC<QuizSourceManagerProps> = ({
                   })()}
 
                   {/* DEBUG: Force console output */}
-                  {console.log(`🔍 RENDERING Source ${idx + 1}:`, {
-                    quizId: source.quizId,
-                    minQuestions: source.minQuestions,
-                    maxQuestions: source.maxQuestions,
-                    questionCountsLoaded: questionCounts.size,
-                    loading
-                  })}
+                  {(() => {
+                    console.log('Source validation data:', {
+                      quizId: source.quizId,
+                      minQuestions: source.minQuestions,
+                      maxQuestions: source.maxQuestions,
+                      questionCountsLoaded: questionCounts.size,
+                      loading
+                    });
+                    return null;
+                  })()}
+                  
                   {source.quizId ? (() => {
                     const sourceQuiz = availableQuizzes.find(q => q.id === source.quizId);
                     if (!sourceQuiz) {
@@ -428,7 +433,7 @@ export const QuizSourceManager: React.FC<QuizSourceManagerProps> = ({
                     const maxQuestions = typeof source.maxQuestions === 'string' ? parseInt(source.maxQuestions) || 0 : source.maxQuestions || 0;
                     
                     // FORCE DEBUG OUTPUT
-                    console.log(`🔍 VALIDATION DATA for Source ${idx + 1}:`, {
+                    console.log(`🔍 Source "${sourceQuiz.title}" validation data:`, {
                       sourceTitle: sourceQuiz.title,
                       totalQuestions,
                       minQuestions,

@@ -94,7 +94,7 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
       const files = await storage.getMusicFiles();
       setMusicFiles(files.sort((a, b) => b.uploadedAt - a.uploadedAt));
     } catch (error) {
-      console.error('Failed to load music files:', error);
+
     }
   };
 
@@ -146,7 +146,7 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
       setCurrentTime(0);
       setIsPlaying(true);
     }).catch(error => {
-      console.error('Failed to play audio:', error);
+
     });
   };
 

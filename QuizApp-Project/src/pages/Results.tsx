@@ -22,8 +22,8 @@ export const Results: React.FC = () => {
         
         // For multi-quiz, we need to regenerate the questions to match the attempt
         if (quizData && quizData.multiQuizSources && foundAttempt.answers.length !== quizData.questions.length) {
-          console.log('🔄 Multi-quiz detected - attempt has different question count than stored quiz');
-          console.log(`Attempt answers: ${foundAttempt.answers.length}, Stored questions: ${quizData.questions.length}`);
+
+
           
           // Try to get the questions from localStorage if available (recent attempt)
           const attemptKey = `quiz_attempt_${foundAttempt.id}_questions`;
@@ -32,17 +32,17 @@ export const Results: React.FC = () => {
           if (storedQuestions) {
             try {
               const parsedQuestions = JSON.parse(storedQuestions);
-              console.log('✅ Found stored questions from attempt:', parsedQuestions.length);
+
               quizData = {
                 ...quizData,
                 questions: parsedQuestions.questions || parsedQuestions,
                 media: parsedQuestions.media || quizData.media
               };
             } catch (error) {
-              console.error('❌ Failed to parse stored questions:', error);
+
             }
           } else {
-            console.warn('⚠️ No stored questions found for multi-quiz attempt - using original quiz structure');
+
           }
         }
         
@@ -111,13 +111,13 @@ export const Results: React.FC = () => {
               
               // Skip if no question exists at this index
               if (!question) {
-                console.warn(`No question found at index ${idx}`);
+
                 return null;
               }
 
               // Skip invalid questions (like multi-quiz config placeholders)
               if (!question.q || !question.o || typeof question.a === 'undefined') {
-                console.warn(`Invalid question structure at index ${idx}:`, question);
+
                 return null;
               }
 

@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { MusicPlayerAdvanced } from "@/components/MusicPlayerAdvanced";
+import { MusicPlayer } from "@/components/MusicPlayer";
 import { Auth } from "./pages/Auth";
 import { ResetPassword } from "./pages/ResetPassword";
 import { Dashboard } from "./pages/Dashboard";
@@ -66,7 +66,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-        <MusicPlayerAdvanced />
+        <MusicPlayer isAdvanced={true} />
       </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>

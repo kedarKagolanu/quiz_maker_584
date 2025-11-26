@@ -19,7 +19,7 @@ export async function buildQuizSourceTree(
 ): Promise<QuizSourceNode> {
   // Prevent cycles
   if (visitedIds.has(quiz.id)) {
-    console.warn(`Cycle detected for quiz ${quiz.id}`);
+
     return {
       quiz,
       children: [],
@@ -51,7 +51,7 @@ export async function buildQuizSourceTree(
     try {
       const sourceQuiz = await storage.getQuizById(source.quizId);
       if (!sourceQuiz) {
-        console.warn(`Source quiz ${source.quizId} not found`);
+
         continue;
       }
       
@@ -59,7 +59,7 @@ export async function buildQuizSourceTree(
       children.push(childNode);
       totalLeafQuestions += childNode.leafQuestions;
     } catch (error) {
-      console.error(`Error building tree for source ${source.quizId}:`, error);
+
     }
   }
   
@@ -83,7 +83,7 @@ export async function getTotalLeafQuestions(
 ): Promise<number> {
   try {
     const tree = await buildQuizSourceTree(quiz, storage);
-    console.log(`🌳 Source tree for "${quiz.title}":`, {
+    console.log('Quiz source tree analysis:', {
       isMultiQuiz: !tree.isLeaf,
       totalSources: tree.children.length,
       leafQuestions: tree.leafQuestions,
@@ -91,7 +91,7 @@ export async function getTotalLeafQuestions(
     });
     return tree.leafQuestions;
   } catch (error) {
-    console.error(`Error getting leaf questions for ${quiz.id}:`, error);
+
     return quiz.questions?.length || 0;
   }
 }
@@ -127,7 +127,7 @@ export async function collectLeafQuestions(
       const sourceQuestions = await collectLeafQuestions(sourceQuiz, storage, new Set(visitedIds));
       allQuestions.push(...sourceQuestions);
     } catch (error) {
-      console.error(`Error collecting questions from source ${source.quizId}:`, error);
+
     }
   }
   

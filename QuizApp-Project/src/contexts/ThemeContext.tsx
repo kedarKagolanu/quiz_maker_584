@@ -260,7 +260,7 @@ const injectThemeStyles = (preset: string, mode: string, gradientEnabled: boolea
   
   // Only log theme injection in development mode
   if (import.meta.env.DEV) {
-    console.log('🎨 Theme applied:', { preset, mode, gradientEnabled });
+
   }
 };
 

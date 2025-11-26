@@ -71,7 +71,7 @@ export const QuizCustomizer: React.FC = () => {
       
       multiQuizActions.setCurrentFolder('');
     } catch (error) {
-      console.error("Failed to load folders and quizzes:", error);
+
     }
   }, [user, id, multiQuizActions]);
 
@@ -104,7 +104,7 @@ export const QuizCustomizer: React.FC = () => {
       
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load quiz:", error);
+
       toast.error("Failed to load quiz");
       navigate("/dashboard");
     }
@@ -149,7 +149,7 @@ export const QuizCustomizer: React.FC = () => {
         const overallLimit = customSettings.questionLimit || quiz.questionLimit || quiz.customQuestionLimit;
         const validationMessages = await multiQuizActions.validateQuizSources(availableQuizzes, storage, overallLimit);
         if (validationMessages.length > 0) {
-          console.error('❌ Multi-quiz validation failed:', validationMessages);
+
           const errors = validationMessages.map(msg => ({
             type: 'multi_quiz' as const,
             message: 'Multi-quiz configuration error',
@@ -166,9 +166,9 @@ export const QuizCustomizer: React.FC = () => {
           toast.error("Please add at least one quiz source for multi-quiz mode");
           return;
         }
-        console.log('✅ Multi-quiz validation passed');
+
       } catch (error) {
-        console.error('❌ Error during multi-quiz validation:', error);
+
         const validationError = {
           type: 'multi_quiz' as const,
           message: 'Validation error during multi-quiz setup',

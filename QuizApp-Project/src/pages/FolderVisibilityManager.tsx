@@ -63,7 +63,7 @@ export const FolderVisibilityManager: React.FC<FolderVisibilityManagerProps> = (
       onUpdate();
       onClose();
     } catch (error) {
-      console.error("Failed to update folder visibility:", error);
+
       toast.error("Failed to update folder visibility");
     } finally {
       setIsLoading(false);

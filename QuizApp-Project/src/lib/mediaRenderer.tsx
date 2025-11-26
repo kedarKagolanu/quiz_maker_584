@@ -21,9 +21,9 @@ export const renderMediaTags = (text: string, media?: MediaItem[], imageSize?: '
     }
 
     // Add media element
-    console.log(`🔍 Checking media reference: [${type}:${num}], index: ${index}, mediaLength: ${media.length}`);
+
     if (media[index]) {
-      console.log(`📋 Media item ${index}:`, { type: media[index].type, expectedType: type, name: media[index].name });
+
     }
     
     // Allow both 'img' and 'image' types to be treated as images
@@ -60,7 +60,7 @@ export const renderMediaTags = (text: string, media?: MediaItem[], imageSize?: '
           imageSrc = `data:${mimeType};base64,${imageData}`;
         }
         
-        console.log(`🖼️ Processing image ${num}: ${mediaItem.name}, src length: ${imageSrc.length}`);
+
         
         parts.push(
           <img
@@ -82,12 +82,12 @@ export const renderMediaTags = (text: string, media?: MediaItem[], imageSize?: '
               backgroundColor: '#1f2937 !important'
             }}
             onLoad={(e) => {
-              console.log(`✅ Image loaded successfully: ${mediaItem.name}`);
+
               const target = e.currentTarget as HTMLImageElement;
               target.style.backgroundColor = 'transparent !important';
             }}
             onError={(e) => {
-              console.error('❌ Image failed to load:', mediaItem.name, 'Data preview:', imageData.substring(0, 50));
+
               const target = e.currentTarget;
               target.style.display = 'none';
               
@@ -96,7 +96,7 @@ export const renderMediaTags = (text: string, media?: MediaItem[], imageSize?: '
               errorSpan.textContent = `[img:${num}] - Image "${mediaItem.name}" failed to load (${imageData.length} bytes)`;
               errorSpan.style.cssText = 'color: #ef4444 !important; font-weight: bold !important; background: rgba(239,68,68,0.1) !important; padding: 8px 12px !important; border-radius: 6px !important; border: 2px solid #ef4444 !important; margin: 4px !important; display: inline-block !important;';
               errorSpan.onclick = () => {
-                console.log('Full image data:', imageData);
+
                 alert(`Image data preview: ${imageData.substring(0, 100)}...`);
               };
               target.parentNode?.insertBefore(errorSpan, target.nextSibling);
@@ -111,7 +111,7 @@ export const renderMediaTags = (text: string, media?: MediaItem[], imageSize?: '
             className="inline-block my-2"
             src={mediaItem.data.startsWith('data:') ? mediaItem.data : `data:audio/mpeg;base64,${mediaItem.data}`}
             onError={(e) => {
-              console.error('Audio failed to load:', mediaItem.name);
+
             }}
           >
             Your browser does not support audio playback.
@@ -126,7 +126,7 @@ export const renderMediaTags = (text: string, media?: MediaItem[], imageSize?: '
       if (media[index] && media[index].type !== type) reasons.push(`type mismatch: expected '${type}' but found '${media[index].type}'`);
       if (!media[index]) reasons.push('media item not found');
       
-      console.warn(`❌ Invalid media reference: ${fullMatch}`, {
+      console.log('Media lookup failed:', {
         index,
         requestedType: type,
         mediaLength: media.length,
@@ -136,7 +136,7 @@ export const renderMediaTags = (text: string, media?: MediaItem[], imageSize?: '
       
       // If it's a type mismatch but media exists, try to render it anyway
       if (media[index] && media[index].type !== type && type === 'img' && media[index].type === 'image') {
-        console.log('🔧 Type mismatch detected: trying to render "image" as "img"');
+
         const mediaItem = media[index];
         
         // Same image processing as above but for type mismatch
@@ -170,9 +170,9 @@ export const renderMediaTags = (text: string, media?: MediaItem[], imageSize?: '
               boxShadow: '0 4px 12px rgba(0,0,0,0.3) !important',
               display: 'inline-block !important'
             }}
-            onLoad={() => console.log(`✅ Image loaded (type corrected): ${mediaItem.name}`)}
+
             onError={(e) => {
-              console.error('❌ Image failed even with type correction:', mediaItem.name);
+
               const target = e.currentTarget;
               target.style.display = 'none';
               const errorSpan = document.createElement('span');
@@ -200,7 +200,7 @@ export const renderMediaTags = (text: string, media?: MediaItem[], imageSize?: '
               margin: '2px !important'
             }}
             onClick={() => {
-              console.log('Full debug info:', { media, index, type, reasons });
+
               alert(`❌ ${fullMatch} failed\n\nReasons: ${reasons.join(', ')}\n\nAvailable media:\n${media.map((m, i) => `[${m.type}:${i+1}] ${m.name}`).join('\n')}`);
             }}
           >

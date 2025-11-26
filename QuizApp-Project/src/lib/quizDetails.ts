@@ -93,7 +93,7 @@ export class QuizDetailResolver {
       return details;
       
     } catch (error) {
-      console.error(`Error getting quiz details for ${quizId}:`, error);
+
       return null;
     }
   }
@@ -129,7 +129,7 @@ export class QuizDetailResolver {
             return { id, details };
           }
         } catch (error) {
-          console.error(`Error fetching details for quiz ${id}:`, error);
+
         }
         return null;
       });
@@ -180,7 +180,7 @@ export class QuizDetailResolver {
       return results;
       
     } catch (error) {
-      console.error('Error getting accessible quizzes:', error);
+
       return [];
     }
   }
@@ -250,7 +250,7 @@ export class QuizDetailResolver {
       return folderDetails;
       
     } catch (error) {
-      console.error('Error getting folder tree with details:', error);
+
       return [];
     }
   }
@@ -339,7 +339,7 @@ export class QuizDetailResolver {
       }
 
     } catch (error) {
-      console.error('Error validating quiz:', error);
+
       issues.push('Validation error occurred');
     }
 
@@ -383,7 +383,7 @@ export class QuizDetailResolver {
               });
             }
           } catch (error) {
-            console.error(`Error loading source quiz ${source.quizId}:`, error);
+
           }
         }
       }
@@ -423,7 +423,7 @@ export class QuizDetailResolver {
             bestScore = Math.max(...quizAttempts.map(a => a.score));
           }
         } catch (error) {
-          console.error(`Error loading attempts for quiz ${quiz.id}:`, error);
+
         }
       }
 
@@ -468,7 +468,7 @@ export class QuizDetailResolver {
       };
       
     } catch (error) {
-      console.error(`Error building quiz details for ${quiz.id}:`, error);
+
       throw error;
     }
   }

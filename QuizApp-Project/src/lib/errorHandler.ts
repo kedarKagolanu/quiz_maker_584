@@ -28,7 +28,7 @@ export const handleError = (
 
   // Only log detailed errors in development mode
   if (import.meta.env.DEV && logToConsole) {
-    console.error("Error details (dev only):", error);
+
   }
 
   // TODO: In production, send errors to server-side monitoring service

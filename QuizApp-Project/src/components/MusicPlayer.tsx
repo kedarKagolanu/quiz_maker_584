@@ -1,9 +1,12 @@
 import React, { useState } from "react";
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Music, Minimize2, Maximize2, X } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Music, Minimize2, Maximize2, X, Shuffle, Repeat } from "lucide-react";
 import { useMusicContext } from "@/contexts/MusicContext";
-import { MusicPlayerRestore } from "./MusicPlayerRestore";
 
-export const MusicPlayer: React.FC = () => {
+interface MusicPlayerProps {
+  isAdvanced?: boolean;
+}
+
+const MusicPlayer = React.memo<MusicPlayerProps>(({ isAdvanced = false }) => {
   const {
     currentlyPlaying,
     isPlaying,
@@ -25,6 +28,9 @@ export const MusicPlayer: React.FC = () => {
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const [isShuffleOn, setIsShuffleOn] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<'off' | 'one' | 'all'>('off');
+
   const currentTrack = musicFiles.find(file => file.id === currentlyPlaying);
 
   const formatTime = (seconds: number) => {
@@ -41,172 +47,172 @@ export const MusicPlayer: React.FC = () => {
     }
   };
 
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
+  const toggleShuffle = () => setIsShuffleOn(!isShuffleOn);
+  
+  const toggleRepeat = () => {
+    const modes: ('off' | 'one' | 'all')[] = ['off', 'one', 'all'];
+    const currentIndex = modes.indexOf(repeatMode);
+    setRepeatMode(modes[(currentIndex + 1) % modes.length]);
   };
 
-  if (!currentTrack) {
-    return null; // Don't show player if no music is playing
-  }
-
   if (!isVisible) {
-    return <MusicPlayerRestore onRestore={() => setIsVisible(true)} />;
+    return null;
   }
 
-  // Minimized view - small box in bottom right
+  if (!currentlyPlaying || musicFiles.length === 0) {
+    return null;
+  }
+
   if (isMinimized) {
     return (
-      <div 
-        className="bg-terminal border border-terminal-accent rounded-lg shadow-lg p-3 cursor-pointer hover:bg-terminal-accent/10 transition-colors"
-        style={{
-          position: 'fixed',
-          bottom: 16,
-          right: 16,
-          zIndex: 40
-        }}
-        onClick={() => setIsMinimized(false)}>
-        <div className="flex items-center gap-2">
-          {isPlaying ? (
-            <Pause className="w-4 h-4 text-terminal-accent" />
-          ) : (
-            <Play className="w-4 h-4 text-terminal-accent" />
-          )}
-          <div className="text-xs text-terminal-bright truncate max-w-[120px]">
-            {currentTrack.title}
+      <div className="fixed bottom-4 right-4 bg-terminal border border-terminal-accent rounded-lg shadow-lg p-3 z-50">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={togglePlay}
+            className="text-terminal-accent hover:text-terminal-bright"
+          >
+            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+          </button>
+          
+          <div className="text-sm">
+            <div className="text-terminal-bright font-medium truncate max-w-[150px]">
+              {currentTrack?.name || "Unknown Track"}
+            </div>
           </div>
+
+          <button
+            onClick={() => setIsMinimized(false)}
+            className="text-terminal-dim hover:text-terminal-bright"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div 
-      className="bg-terminal border border-terminal-accent rounded-lg p-4 shadow-lg min-w-[320px]"
-      style={{
-        position: 'fixed',
-        bottom: 16,
-        right: 16,
-        zIndex: 40
-      }}>
-      <div className="text-terminal-foreground mb-3">
-        <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2 justify-between">
-          <div className="flex items-center gap-2">
-            <Music className="w-4 h-4" />
-            Now Playing
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setIsMinimized(true)}
-              className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
-              title="Minimize player"
-            >
-              <Minimize2 className="w-3 h-3 text-terminal-dim hover:text-terminal-foreground" />
-            </button>
-            <button
-              onClick={() => setIsVisible(false)}
-              className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
-              title="Close player"
-            >
-              <X className="w-3 h-3 text-terminal-dim hover:text-terminal-foreground" />
-            </button>
-          </div>
+    <div className="fixed bottom-4 right-4 bg-terminal border border-terminal-accent rounded-lg shadow-lg p-4 min-w-[320px] z-50">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Music className="w-5 h-5 text-terminal-accent" />
+          <span className="text-terminal-bright font-medium">Music Player</span>
         </div>
-        <div className="text-xs text-terminal-dim mt-1">{currentTrack.title}</div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsMinimized(true)}
+            className="text-terminal-dim hover:text-terminal-bright"
+          >
+            <Minimize2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setIsVisible(false)}
+            className="text-terminal-dim hover:text-terminal-bright"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
-      
-      {/* Progress Bar */}
+
       <div className="mb-3">
-        <div className="flex justify-between text-xs text-terminal-dim mb-1">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
+        <div className="text-terminal-bright font-medium truncate">
+          {currentTrack?.name || "Unknown Track"}
         </div>
-        <div 
-          className="w-full bg-terminal-dim/30 rounded-full h-2 cursor-pointer"
-          onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const percent = (e.clientX - rect.left) / rect.width;
-            seekTo(percent * duration);
-          }}
-        >
-          <div 
-            className="bg-terminal-accent h-2 rounded-full transition-all"
+        <div className="text-terminal-dim text-sm">
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <div className="w-full bg-terminal-dim rounded-full h-2 mb-2">
+          <div
+            className="bg-terminal-accent h-2 rounded-full transition-all duration-300"
             style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
           />
         </div>
       </div>
-      
-      <div className="flex items-center gap-2 mb-3">
+
+      <div className="flex items-center justify-center gap-3 mb-3">
+        {isAdvanced && (
+          <button
+            onClick={toggleShuffle}
+            className={`text-terminal-dim hover:text-terminal-bright ${isShuffleOn ? 'text-terminal-accent' : ''}`}
+          >
+            <Shuffle className="w-4 h-4" />
+          </button>
+        )}
+        
         <button
           onClick={playPrevious}
-          className="p-2 hover:bg-terminal-accent/20 rounded transition-colors"
-          aria-label="Previous track"
+          className="text-terminal-dim hover:text-terminal-bright"
         >
-          <SkipBack className="w-4 h-4 text-terminal-foreground" />
+          <SkipBack className="w-5 h-5" />
         </button>
         
         <button
           onClick={togglePlay}
-          className="p-2 bg-terminal-accent hover:bg-terminal-accent/80 rounded transition-colors"
-          aria-label={isPlaying ? "Pause" : "Play"}
+          className="bg-terminal-accent hover:bg-terminal-accent/80 text-terminal rounded-full p-2"
         >
-          {isPlaying ? (
-            <Pause className="w-5 h-5 text-terminal" />
-          ) : (
-            <Play className="w-5 h-5 text-terminal" />
-          )}
+          {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
         </button>
         
         <button
           onClick={playNext}
-          className="p-2 hover:bg-terminal-accent/20 rounded transition-colors"
-          aria-label="Next track"
+          className="text-terminal-dim hover:text-terminal-bright"
         >
-          <SkipForward className="w-4 h-4 text-terminal-foreground" />
+          <SkipForward className="w-5 h-5" />
         </button>
 
-        <div className="flex-1 flex items-center gap-2 ml-2">
+        {isAdvanced && (
           <button
-            onClick={toggleMute}
-            className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
-            aria-label={isMuted ? "Unmute" : "Mute"}
+            onClick={toggleRepeat}
+            className={`text-terminal-dim hover:text-terminal-bright ${repeatMode !== 'off' ? 'text-terminal-accent' : ''}`}
           >
-            {isMuted ? (
-              <VolumeX className="w-4 h-4 text-terminal-foreground" />
-            ) : (
-              <Volume2 className="w-4 h-4 text-terminal-foreground" />
-            )}
+            <Repeat className="w-4 h-4" />
           </button>
+        )}
+      </div>
+
+      {isAdvanced && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => skipSeconds(-10)}
+            className="text-terminal-dim hover:text-terminal-bright text-sm"
+          >
+            -10s
+          </button>
+          
+          <button
+            onClick={() => skipSeconds(10)}
+            className="text-terminal-dim hover:text-terminal-bright text-sm"
+          >
+            +10s
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 mt-3">
+        <button
+          onClick={() => setIsMuted(!isMuted)}
+          className="text-terminal-dim hover:text-terminal-bright"
+        >
+          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+        </button>
+        
+        <div className="flex-1">
           <input
             type="range"
             min="0"
             max="1"
             step="0.1"
-            value={volume}
-            onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="flex-1 accent-terminal-accent"
+            value={isMuted ? 0 : volume}
+            onChange={(e) => setVolume(Number(e.target.value))}
+            className="w-full accent-terminal-accent"
           />
-        </div>
-      </div>
-      
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-terminal-dim">
-          User music library
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => skipSeconds(-10)}
-            className="text-xs text-terminal-dim hover:text-terminal-foreground transition-colors"
-          >
-            -10s
-          </button>
-          <button
-            onClick={() => skipSeconds(10)}
-            className="text-xs text-terminal-dim hover:text-terminal-foreground transition-colors"
-          >
-            +10s
-          </button>
         </div>
       </div>
     </div>
   );
-};
+});
+
+export { MusicPlayer };

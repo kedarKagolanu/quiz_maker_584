@@ -71,14 +71,9 @@ export const QuizCreator: React.FC = () => {
   useEffect(() => {
     if (editQuizId) {
       const loadQuiz = async () => {
-        console.log('📝 Loading quiz for editing:', editQuizId);
+
         const quiz = await storage.getQuizById(editQuizId);
         if (quiz && quiz.creator === user?.id) {
-          console.log('✅ Quiz loaded for editing:', {
-            title: quiz.title,
-            hasMultiQuizSources: !!quiz.multiQuizSources,
-            questionsCount: quiz.questions?.length
-          });
           
           quizActions.setTitle(quiz.title);
           quizActions.setIsPublic(quiz.isPublic);
@@ -98,7 +93,7 @@ export const QuizCreator: React.FC = () => {
           
           // Handle multi-quiz vs single quiz
           if (quiz.multiQuizSources) {
-            console.log('🔗 Loading multi-quiz configuration:', quiz.multiQuizSources);
+
             multiQuizActions.loadMultiQuizConfiguration(quiz);
             
             // For multi-quiz, only set JSON for manual questions (exclude config placeholder)
@@ -109,7 +104,7 @@ export const QuizCreator: React.FC = () => {
               quizActions.setJsonInput("");
             }
           } else {
-            console.log('📄 Loading single quiz');
+
             multiQuizActions.setMultiQuizMode(false);
             quizActions.setJsonInput(JSON.stringify(quiz.questions, null, 2));
           }
@@ -120,13 +115,6 @@ export const QuizCreator: React.FC = () => {
   }, [editQuizId, user]);
 
   const handleCreate = async () => {
-    console.log('🚀 handleCreate called', {
-      user: !!user,
-      multiQuizMode: multiQuizState.multiQuizMode,
-      jsonInput: quizState.jsonInput?.substring(0, 50) + '...',
-      quizSourcesCount: multiQuizState.quizSources.length,
-      title: quizState.title
-    });
 
     if (!user) {
       navigate("/");
@@ -203,7 +191,7 @@ export const QuizCreator: React.FC = () => {
       }
       
       if (totalValidationErrors.length > 0) {
-        console.error('❌ Multi-quiz validation failed:', totalValidationErrors);
+
         // Show a detailed error message with all validation issues
         const errorMessage = `❌ Cannot create quiz - Configuration errors found:\n\n${totalValidationErrors.map(error => `• ${error}`).join('\n')}`;
         toast.error(errorMessage, {
@@ -225,16 +213,16 @@ export const QuizCreator: React.FC = () => {
 
       // Validate question limit against total
       if (quizState.customQuestionLimit && quizState.customQuestionLimit < totalMinQuestions) {
-        console.error(`❌ Question limit validation failed: ${quizState.customQuestionLimit} < ${totalMinQuestions}`);
+
         const error = ValidationErrors.questionLimit(quizState.customQuestionLimit, totalMinQuestions);
         quizActions.setValidationErrors([error]);
         toast.error(`❌ Question limit (${quizState.customQuestionLimit}) is less than minimum required questions (${totalMinQuestions}) from your sources`);
         return;
       }
       
-      console.log('✅ Multi-quiz validation completed successfully');
+
     } else {
-      console.log('📄 Single quiz mode - skipping multi-quiz validation');
+
     }
 
     // Clear previous validation errors
@@ -259,7 +247,7 @@ export const QuizCreator: React.FC = () => {
     }
 
     try {
-      console.log('🔄 Starting quiz creation process');
+
       quizActions.setJsonError("");
       quizActions.setErrorLine(null);
       quizActions.setErrorColumn(null);
@@ -267,7 +255,7 @@ export const QuizCreator: React.FC = () => {
       let questions: any[] = [];
       
       if (multiQuizState.multiQuizMode) {
-        console.log('🔗 Multi-Quiz Mode: Processing configuration', { quizSources: multiQuizState.quizSources });
+
         
         // For multi-quiz mode, we DON'T generate questions now
         // Instead, we store the configuration and generate questions dynamically when quiz is taken
@@ -286,7 +274,7 @@ export const QuizCreator: React.FC = () => {
           _isMultiQuizConfig: true
         }];
         
-        console.log('📝 Created placeholder question for multi-quiz', questions);
+
         
         // Add manual questions if provided
         if (quizState.jsonInput && quizState.jsonInput.trim()) {
@@ -298,63 +286,57 @@ export const QuizCreator: React.FC = () => {
                 _sourceQuiz: 'manual',
                 _sourceTitle: 'Manual Entry'
               })));
-              console.log('➕ Added manual questions:', extraQuestions.length);
+
             }
           } catch (e) {
-            console.error('❌ Error parsing additional JSON questions:', e);
+
             toast.error("Invalid JSON format for additional questions");
             return;
           }
         }
         
-        console.log('📊 Multi-Quiz Configuration Saved - Questions will be generated dynamically');
+
         
       } else {
-        console.log('📄 Single Quiz Mode: Parsing JSON');
+
         // Parse JSON for single quiz mode
         if (!quizState.jsonInput || !quizState.jsonInput.trim()) {
           toast.error("Please provide quiz questions JSON");
           return;
         }
         questions = JSON.parse(quizState.jsonInput);
-        console.log('✅ Parsed questions from JSON:', questions.length);
+
       }
       
       // Validate with Zod schema (skip validation for multi-quiz placeholder)
-      console.log('🔍 Validation check:', { 
-        multiQuizMode: multiQuizState.multiQuizMode, 
-        questionsLength: questions.length,
-        isMultiQuizConfig: questions[0]?._isMultiQuizConfig,
-        firstQuestion: questions[0]?.q?.substring(0, 30)
-      });
 
       if (multiQuizState.multiQuizMode && questions.length >= 1 && questions[0]._isMultiQuizConfig) {
         // Skip validation for multi-quiz placeholder
-        console.log('✅ Skipping validation for multi-quiz placeholder');
+
       } else {
-        console.log('🔍 Running validation on questions...');
+
         const validation = validateInput(quizQuestionsSchema, questions);
         if (validation.success === false) {
-          console.error('❌ Validation failed:', validation.error);
+
           quizActions.setJsonError(`❌ ${validation.error}`);
           toast.error(validation.error);
           return;
         }
-        console.log('✅ Validation passed');
+
       }
       
       // Use validated data (already validated so type is safe, or use questions directly for multi-quiz)
       let validatedQuestions: any;
       if (multiQuizState.multiQuizMode && questions.length >= 1 && questions[0]._isMultiQuizConfig) {
         // For multi-quiz mode, use questions directly without validation
-        console.log('📝 Using questions directly for multi-quiz mode');
+
         validatedQuestions = questions;
       } else {
         // For single quiz mode, use already validated data from above
-        console.log('📝 Using validated questions for single quiz mode');
+
         const validation = validateInput(quizQuestionsSchema, questions);
         if (validation.success === false) {
-          console.error('❌ Second validation failed:', validation.error);
+
           quizActions.setJsonError(`❌ ${validation.error}`);
           toast.error(validation.error);
           return;
@@ -365,21 +347,7 @@ export const QuizCreator: React.FC = () => {
       // Extract multi-quiz metadata if present
       const multiQuizMetadata = (validatedQuestions as any)._multiQuizMetadata;
       
-      console.log('💾 Preparing to save quiz with:', {
-        editQuizId,
-        multiQuizMode: multiQuizState.multiQuizMode,
-        questionsCount: validatedQuestions.length,
-        multiQuizSourcesConfig: multiQuizState.multiQuizMode ? {
-          sources: multiQuizState.quizSources.map(s => ({
-            quizId: s.quizId,
-            minQuestions: typeof s.minQuestions === 'string' ? parseInt(s.minQuestions) || 1 : s.minQuestions,
-            maxQuestions: typeof s.maxQuestions === 'string' ? parseInt(s.maxQuestions) || 1 : s.maxQuestions,
-            fixedCount: s.fixedCount
-          })),
-          metadata: multiQuizMetadata,
-          hasManualQuestions: !!(quizState.jsonInput && quizState.jsonInput.trim())
-        } : 'none'
-      });
+
       
       if (editQuizId) {
         const existingQuiz = await storage.getQuizById(editQuizId);
@@ -450,28 +418,23 @@ export const QuizCreator: React.FC = () => {
           } : undefined,
         };
         
-        console.log('🚀 Calling storage.saveQuiz with quiz object:', {
-          id: quiz.id,
-          title: quiz.title,
-          hasMultiQuizSources: !!quiz.multiQuizSources,
-          multiQuizSourcesDetail: quiz.multiQuizSources
-        });
+
         
         await storage.saveQuiz(quiz);
-        console.log('✅ Quiz saved successfully to database');
+
         
         // Verify the quiz was saved with multi-quiz sources
         if (multiQuizState.multiQuizMode) {
           try {
             const savedQuiz = await storage.getQuizById(quiz.id);
-            console.log('🔍 Verification: Retrieved quiz from database:', {
+            console.log('Saved quiz verification:', {
               id: savedQuiz?.id,
               title: savedQuiz?.title,
               hasMultiQuizSources: !!savedQuiz?.multiQuizSources,
               multiQuizSourcesFromDB: savedQuiz?.multiQuizSources
             });
           } catch (error) {
-            console.error('❌ Error verifying saved quiz:', error);
+            console.error('Error verifying saved quiz:', error);
           }
         }
         

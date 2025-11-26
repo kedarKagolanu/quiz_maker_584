@@ -77,15 +77,15 @@ export const QuizTaker: React.FC = () => {
       let quizWithCustomSettings = { ...fetchedQuiz };
       if (customTimeLimit) {
         quizWithCustomSettings.timeLimit = parseInt(customTimeLimit);
-        console.log('🎯 Applied custom time limit:', customTimeLimit);
+
       }
       if (customPerQuestionTimeLimit) {
         quizWithCustomSettings.perQuestionTimeLimit = parseInt(customPerQuestionTimeLimit);
-        console.log('🎯 Applied custom per-question time limit:', customPerQuestionTimeLimit);
+
       }
       if (customRandomize) {
         quizWithCustomSettings.randomize = customRandomize === 'true';
-        console.log('🎯 Applied custom randomization:', customRandomize);
+
       }
 
       let finalQuestions = [...quizWithCustomSettings.questions];
@@ -103,13 +103,12 @@ export const QuizTaker: React.FC = () => {
             loadingToast = toast.loading("🎲 Generating questions from multiple sources...", { duration: Infinity });
             
             // Use stored multi-quiz configuration
-            console.log('🎯 Using stored multi-quiz configuration');
+
             const generationResult = await generateMultiQuizQuestions(quizWithCustomSettings, storage);
             
             if (generationResult) {
               setMultiQuizMetadata(generationResult.metadata);
               finalQuestions = generationResult.questions;
-              console.log(`🎯 Multi-quiz generation successful - metadata set:`, generationResult.metadata.sources.map(s => `${s.sourceTitle}: ${s.questionCount} questions`));
               
               // Update quiz with merged media and sections if available
               if ((generationResult as any).mergedMedia) {
@@ -119,13 +118,13 @@ export const QuizTaker: React.FC = () => {
                   ...quizWithCustomSettings,
                   media: mergedMedia
                 };
-                console.log(`📁 Updated quiz media: ${mergedMedia.length} items`);
+
               }
               
               // Store section information for better navigation
               if ((generationResult as any).sections) {
                 const generatedSections = (generationResult as any).sections;
-                console.log(`📚 Generated sections:`, generatedSections.map((s: any) => `${s.sectionName}: ${s.questions.length} questions`));
+
                 
                 // Convert generation sections to display sections
                 let sectionStartIndex = 0;
@@ -150,8 +149,8 @@ export const QuizTaker: React.FC = () => {
                 
                 if (displaySections.length > 0) {
                   setQuestionSections(displaySections);
-                  console.log(`📚 Set ${displaySections.length} question sections from generation result`);
-                  console.log(`✅ SECTIONS SET FROM GENERATION RESULT - SKIPPING FALLBACK LOGIC`);
+
+
                   
                   // Apply section-wise randomization if enabled
                   if (quizWithCustomSettings.randomize) {
@@ -162,11 +161,11 @@ export const QuizTaker: React.FC = () => {
                         [section.questions[i], section.questions[j]] = [section.questions[j], section.questions[i]];
                       }
                     });
-                    console.log('🔀 Applied proper Fisher-Yates randomization within each section (from generation result)');
+
                     
                     // Update finalQuestions with the randomized section order
                     finalQuestions = displaySections.flatMap(section => section.questions);
-                    console.log(`📚 Updated finalQuestions with randomized sections: ${finalQuestions.length} questions`);
+
                     
                     // Update sections after randomization
                     setQuestionSections(displaySections);
@@ -176,7 +175,7 @@ export const QuizTaker: React.FC = () => {
                   sectionsAlreadyCreated = true;
                 }
               } else {
-                console.warn(`⚠️ No section information found in generation result`);
+
               }
               
               // Properly dismiss the loading toast and show success
@@ -186,19 +185,19 @@ export const QuizTaker: React.FC = () => {
               toast.success(`🎉 Generated ${finalQuestions.length} questions from ${generationResult.metadata.sources.length} sources!`, {
                 duration: 3000
               });
-              console.log('🎯 Generated questions:', finalQuestions.length);
+
             } else {
               throw new Error('Failed to generate multi-quiz questions');
             }
           } else if (multiQuizMode === 'true' && quizSources) {
             // Use URL-based multi-quiz mode (legacy)
-            console.log('🎯 Using URL-based multi-quiz mode');
+
             const sources = JSON.parse(quizSources);
             finalQuestions = await buildMultiQuizQuestions(sources);
-            console.log('🎯 Built multi-quiz with', finalQuestions.length, 'questions');
+
           }
         } catch (error) {
-          console.error('❌ Failed to generate multi-quiz:', error);
+
           if (loadingToast) {
             toast.dismiss(loadingToast);
           }
@@ -212,7 +211,7 @@ export const QuizTaker: React.FC = () => {
         const limit = parseInt(questionLimit);
         if (limit > 0 && limit < finalQuestions.length) {
           finalQuestions = finalQuestions.sort(() => Math.random() - 0.5).slice(0, limit);
-          console.log('🎯 Limited questions to:', limit);
+
         }
       }
 
@@ -221,16 +220,16 @@ export const QuizTaker: React.FC = () => {
       let sections: {title: string, questions: QuizQuestion[], startIndex: number}[] = [];
       
       if (quizWithCustomSettings.multiQuizSources && !sectionsAlreadyCreated) {
-        console.log('📚 Creating sections for multi-quiz');
-        console.log('📚 Quiz has multiQuizSources:', quizWithCustomSettings.multiQuizSources);
-        console.log('📚 MultiQuizMetadata:', multiQuizMetadata);
+
+
+
         
         let currentIndexTracker = 0;
         
         // ALWAYS create sections for multi-quiz, regardless of metadata availability
         if (multiQuizMetadata?.sources) {
           // Use metadata if available
-          console.log('📚 Using multiQuizMetadata for section creation');
+
           
           // Create sections based on the actual distribution from metadata
           multiQuizMetadata.sources.forEach((sourceInfo, idx) => {
@@ -245,7 +244,7 @@ export const QuizTaker: React.FC = () => {
               const sourceConfig = quizWithCustomSettings.multiQuizSources?.sources?.find(s => s.quizId === sourceInfo.quizId);
               const sectionTitle = sourceConfig?.sectionName || sourceInfo.quizTitle || `Quiz ${idx + 1}`;
               
-              console.log(`🎯 Creating section: "${sectionTitle}" for source ${sourceInfo.quizId} with ${sourceQuestionCount} questions (${currentIndexTracker} to ${currentIndexTracker + sourceQuestionCount - 1})`);
+
               
               sections.push({
                 title: sectionTitle,
@@ -257,7 +256,7 @@ export const QuizTaker: React.FC = () => {
           });
         } else {
           // Fallback: create sections based on multiQuizSources configuration directly
-          console.log('📚 No metadata available, creating sections from quiz configuration');
+
           
           if (quizWithCustomSettings.multiQuizSources.sources) {
             const questionsPerSource = Math.ceil(finalQuestions.length / quizWithCustomSettings.multiQuizSources.sources.length);
@@ -270,7 +269,7 @@ export const QuizTaker: React.FC = () => {
               if (sourceQuestions.length > 0) {
                 const sectionTitle = sourceConfig.sectionName || `Section ${idx + 1}`;
                 
-                console.log(`🎯 Creating fallback section: "${sectionTitle}"`);
+
                 
                 sections.push({
                   title: sectionTitle,
@@ -292,19 +291,19 @@ export const QuizTaker: React.FC = () => {
               [section.questions[i], section.questions[j]] = [section.questions[j], section.questions[i]];
             }
           });
-          console.log('🔀 Applied proper Fisher-Yates randomization within each section');
+
         }
         
         // Flatten sections back to questions array
         qs = sections.flatMap(section => section.questions);
         setQuestionSections(sections);
         
-        console.log(`📚 Created ${sections.length} sections:`, sections.map(s => `${s.title}: ${s.questions.length} questions`));
+
       } else if (sectionsAlreadyCreated) {
         // Sections were already created from generation result - they should already be set in finalQuestions
-        console.log('📚 Using questions from generation result (sections already processed)');
+
         qs = finalQuestions;
-        console.log(`📚 Using ${qs.length} questions from generation result`);
+
       } else {
         // Regular quiz - apply proper randomization
         if (quizWithCustomSettings.randomize) {
@@ -314,7 +313,7 @@ export const QuizTaker: React.FC = () => {
             const j = Math.floor(Math.random() * (i + 1));
             [qs[i], qs[j]] = [qs[j], qs[i]];
           }
-          console.log('🔀 Applied proper Fisher-Yates randomization for regular quiz');
+
         } else {
           qs = finalQuestions;
         }
@@ -332,7 +331,7 @@ export const QuizTaker: React.FC = () => {
       
       // Ensure we have valid questions before proceeding
       if (!qs || qs.length === 0) {
-        console.error('❌ No questions available after processing');
+
         toast.error('No questions available for this quiz');
         navigate('/dashboard');
         return;
@@ -342,11 +341,11 @@ export const QuizTaker: React.FC = () => {
       setQuiz(quizWithCustomSettings);
       setQuestions(qs);
       
-      console.log(`🎯 Final quiz state - Media items: ${quizWithCustomSettings.media?.length || 0}`);
-      console.log(`🎯 Final quiz questions: ${qs.length}`);
-      console.log(`🎯 Sample question structure:`, qs[0]);
-      console.log(`🎯 Quiz title: ${quizWithCustomSettings.title}`);
-      console.log(`🎯 Question sections:`, sections);
+
+
+
+
+
       
       setAnswers(new Array(qs.length).fill(-1));
       setTimeTaken(new Array(qs.length).fill(0));
@@ -362,14 +361,7 @@ export const QuizTaker: React.FC = () => {
       const hasPerQuestionTimer = !!(fetchedQuiz.perQuestionTimeLimit && fetchedQuiz.perQuestionTimeLimit > 0);
       setHasPerQuestionTimer(hasPerQuestionTimer);
       
-      console.log(`🎯 Quiz timer mode determined:`, {
-        timeLimit: fetchedQuiz.timeLimit,
-        perQuestionTimeLimit: fetchedQuiz.perQuestionTimeLimit,
-        hasPerQuestionTimer: hasPerQuestionTimer,
-        mode: hasPerQuestionTimer ? 'Per-question timer (locked navigation)' : 
-              fetchedQuiz.timeLimit ? 'Quiz-wide timer (free navigation)' : 
-              'No time limit (free navigation)'
-      });
+
 
       // Set quiz-wide timer only for Mode 1 (not Mode 3)
       if (fetchedQuiz.timeLimit && !hasPerQuestionTimer) {
@@ -388,7 +380,7 @@ export const QuizTaker: React.FC = () => {
   }, [id, user, navigate]);
 
   const buildMultiQuizQuestions = async (sources: any[]) => {
-    console.log('🔧 Using legacy buildMultiQuizQuestions - converting to new system');
+
     
     // Create a temporary quiz object with the URL sources to use the new recursive system
     const tempQuiz: Quiz = {
@@ -414,7 +406,7 @@ export const QuizTaker: React.FC = () => {
       // Use the new recursive multi-quiz generator
       const result = await generateMultiQuizQuestions(tempQuiz, storage);
       if (result && result.questions) {
-        console.log(`✅ Generated ${result.questions.length} questions using new recursive system`);
+
         
         // Update metadata for URL-based multi-quiz
         if (result.metadata) {
@@ -426,7 +418,7 @@ export const QuizTaker: React.FC = () => {
         throw new Error('Failed to generate questions with new system');
       }
     } catch (error) {
-      console.error('❌ Failed to use new system, falling back to range-aware method:', error);
+
       
       // Fallback to collection-based recursive resolution
       try {
@@ -436,7 +428,7 @@ export const QuizTaker: React.FC = () => {
           false // URL-based mode defaults to random order
         );
         
-        console.log(`✅ Generated ${resolutionResult.questions.length} questions using range-aware fallback`);
+
         
         // Store section information if available
         if (resolutionResult.sections && resolutionResult.sections.length > 0) {
@@ -466,7 +458,7 @@ export const QuizTaker: React.FC = () => {
         return resolutionResult.questions;
         
       } catch (fallbackError) {
-        console.error('❌ Range-aware fallback also failed, using basic method:', fallbackError);
+
         
         // Final fallback: basic recursive resolution without ranges
         const allQuestions: QuizQuestion[] = [];
@@ -497,9 +489,9 @@ export const QuizTaker: React.FC = () => {
             const selectedQuestions = shuffledQuestions.slice(0, questionsToTake);
             allQuestions.push(...selectedQuestions);
             
-            console.log(`📖 Added ${selectedQuestions.length}/${questionsToTake} questions from ${sourceQuiz.title} (${resolvedQuestions.length} available)`);
+
           } catch (error) {
-            console.error(`❌ Error processing source ${source.quizId}:`, error);
+
           }
         }
         
@@ -685,7 +677,7 @@ export const QuizTaker: React.FC = () => {
         metadata: multiQuizMetadata
       };
       localStorage.setItem(attemptKey, JSON.stringify(questionsData));
-      console.log(`💾 Stored ${questions.length} questions for attempt ${attemptId}`);
+
     }
 
     await storage.saveAttempt(attempt);

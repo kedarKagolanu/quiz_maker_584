@@ -19,7 +19,7 @@ export function validateTimeSettings(timeLimit?: string | number, perQuestionTim
   
   // Database constraint: only one can be set
   if (totalTime && perQuestionTime) {
-    console.warn('⚠️ Both time limits set, prioritizing per-question time');
+
     return {
       timeLimit: undefined,
       perQuestionTimeLimit: perQuestionTime

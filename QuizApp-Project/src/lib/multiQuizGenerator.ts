@@ -7,8 +7,8 @@ import { collectLeafQuestions } from './quizSourceTree';
 function applyLimitWithQuizOrder(questions: Question[], limit: number): Question[] {
   // ❌ THIS FUNCTION SHOULD NOT BE USED WHEN PRESERVE ORDER IS ENABLED
   // It redistributes questions proportionally instead of preserving section boundaries
-  console.error(`❌ applyLimitWithQuizOrder called with preserve order - this should not happen!`);
-  console.error(`❌ This will break section integrity - using original questions instead`);
+
+
   
   // Return original questions to avoid redistribution
   return questions;
@@ -35,17 +35,17 @@ export async function generateMultiQuizQuestions(
 ): Promise<MultiQuizGenerationResult | null> {
   
   if (!quiz.multiQuizSources) {
-    console.log('⚠️ Not a multi-quiz, returning original questions');
+
     return null;
   }
 
-  console.log('🎲 Generating dynamic multi-quiz questions with proper range restrictions...');
+
   
   const preserveQuizOrder = quiz.multiQuizSources?.preserveQuizOrder || false;
-  console.log(`🎯 Multi-quiz generation mode: ${preserveQuizOrder ? 'PRESERVE QUIZ ORDER' : 'FULLY RANDOM'}`);
+
 
   try {
-    console.log('🎯 STEP 1: Collecting ALL questions from nested sources (no filtering)...');
+
     
     // STEP 1: Collect ALL questions from all sources recursively (no range filtering)
     const collectionResult = await collectAllRecursiveQuestions(
@@ -54,10 +54,10 @@ export async function generateMultiQuizQuestions(
       preserveQuizOrder
     );
 
-    console.log(`📚 STEP 1 COMPLETE: Collected ${collectionResult.questions.length} total questions from ${collectionResult.sections.length} sources`);
-    console.log(`📊 Collection breakdown:`, collectionResult.sections.map(s => `${s.sectionName}: ${s.questions.length} questions (all available)`));
 
-    console.log('🎯 STEP 2: Applying range restrictions at ROOT LEVEL ONLY...');
+
+
+
     
     // STEP 2: Apply range filtering only at the root level
     const filteredResult = applyRootLevelFiltering(
@@ -65,13 +65,13 @@ export async function generateMultiQuizQuestions(
       preserveQuizOrder
     );
 
-    console.log(`📊 STEP 2 COMPLETE: Filtered to ${filteredResult.questions.length} questions`);
-    console.log(`📊 Filtering breakdown:`, filteredResult.sections.map(s => `${s.sectionName}: ${s.actualSelected}/${s.questions.length + s.totalAvailable - s.questions.length} questions selected`));
+
+
 
     // STEP 3: Apply final quiz-level question limit if specified
     let finalQuestions = filteredResult.questions;
     if (quiz.questionLimit && quiz.questionLimit < finalQuestions.length) {
-      console.log(`🎯 STEP 3: Applying quiz-level question limit: ${quiz.questionLimit} (from ${finalQuestions.length} available)`);
+
       
       if (preserveQuizOrder) {
         // Preserve proportional representation from each section
@@ -94,7 +94,7 @@ export async function generateMultiQuizQuestions(
         const j = Math.floor(Math.random() * (i + 1));
         [finalQuestions[i], finalQuestions[j]] = [finalQuestions[j], finalQuestions[i]];
       }
-      console.log('🔀 Applied final random shuffle across all questions');
+
     }
 
     // Build metadata from sections
@@ -110,8 +110,8 @@ export async function generateMultiQuizQuestions(
       finalLimit: quiz.questionLimit
     };
 
-    console.log(`🎉 GENERATION COMPLETE: ${finalQuestions.length} questions from ${filteredResult.sections.length} sources`);
-    console.log(`📊 Final breakdown:`, filteredResult.sections.map(s => `${s.sectionName}: ${s.actualSelected} questions selected`));
+
+
 
     return {
       questions: finalQuestions,
@@ -124,7 +124,7 @@ export async function generateMultiQuizQuestions(
     };
 
   } catch (error) {
-    console.error('❌ Error in new two-step collection/filtering, falling back to legacy method:', error);
+
     
     // Fallback to legacy method
     return await generateMultiQuizQuestionsLegacy(quiz, storage);
@@ -135,7 +135,7 @@ async function generateMultiQuizQuestionsLegacy(
   quiz: Quiz,
   storage: StorageService
 ): Promise<MultiQuizGenerationResult | null> {
-  console.log('🔧 Using legacy multi-quiz generation method');
+
   
   const preserveQuizOrder = quiz.multiQuizSources?.preserveQuizOrder || false;
   const mergedQuestions: Question[] = [];
@@ -151,14 +151,14 @@ async function generateMultiQuizQuestionsLegacy(
     try {
       const sourceQuiz = await storage.getQuizById(source.quizId);
       if (!sourceQuiz) {
-        console.warn(`⚠️ Source quiz ${source.quizId} not found`);
+
         continue;
       }
 
       // Get questions from leaf nodes only (not intermediate multi-quiz nodes)
       let sourceQuestions = await collectLeafQuestions(sourceQuiz, storage);
       
-      console.log(`🌳 Leaf-based question collection for "${sourceQuiz.title}":`, {
+      console.log(`🔍 Source "${sourceQuiz.title}" analysis:`, {
         isMultiQuiz: !!sourceQuiz.multiQuizSources,
         leafQuestions: sourceQuestions.length,
         directQuestions: sourceQuiz.questions?.length || 0,
@@ -166,11 +166,11 @@ async function generateMultiQuizQuestionsLegacy(
       });
       
       if (!sourceQuestions || sourceQuestions.length === 0) {
-        console.warn(`⚠️ Source quiz ${source.quizId} has no leaf questions available`);
+
         continue;
       }
 
-      console.log(`📖 Processing ${sourceQuiz.title}: ${sourceQuestions.length} available questions (including nested sources)`);
+
 
       // Handle shuffling based on preserve order setting
       const preserveQuizOrder = quiz.multiQuizSources?.preserveQuizOrder || false;
@@ -181,12 +181,12 @@ async function generateMultiQuizQuestionsLegacy(
           const j = Math.floor(Math.random() * (i + 1));
           [sourceQuestions[i], sourceQuestions[j]] = [sourceQuestions[j], sourceQuestions[i]];
         }
-        console.log(`🔀 Applied Fisher-Yates shuffle to ${sourceQuiz.title} for random selection`);
+
       } else {
         // ✅ PRESERVE ORDER: Keep questions in their original order, no random selection
         // Don't modify sourceQuestions array at all when preserving order
-        console.log(`📚 Keeping ALL questions from ${sourceQuiz.title} in original order (preserve quiz order enabled)`);
-        console.log(`📚 Source has ${sourceQuestions.length} questions available for section`);
+
+
       }
 
       // Determine how many questions to select from this source
@@ -195,18 +195,18 @@ async function generateMultiQuizQuestionsLegacy(
       if (preserveQuizOrder && source.fixedCount) {
         // ✅ PRESERVE ORDER + FIXED COUNT: Take exactly what user specified
         selectedCount = source.minQuestions; // Use exactly the fixed count
-        console.log(`📚 PRESERVE ORDER: Taking exactly ${selectedCount} questions from "${sourceQuiz.title}" (fixed count)`);
+
       } else if (preserveQuizOrder) {
         // ✅ PRESERVE ORDER + RANGE: Take minimum to preserve section boundaries
         selectedCount = source.minQuestions; // Take minimum to preserve section structure
-        console.log(`📚 PRESERVE ORDER: Taking ${selectedCount} questions from "${sourceQuiz.title}" (minimum for section preservation)`);
+
       } else {
         // Random mode: use original logic
         selectedCount = source.fixedCount 
           ? source.minQuestions
           : Math.floor(Math.random() * (source.maxQuestions - source.minQuestions + 1)) + source.minQuestions;
           
-        console.log(`🎯 RANDOM MODE: Question selection for "${sourceQuiz.title}":`, {
+        console.log(`🎯 Question selection for "${sourceQuiz.title}":`, {
           fixedCount: source.fixedCount,
           minQuestions: source.minQuestions,
           maxQuestions: source.maxQuestions,
@@ -223,14 +223,14 @@ async function generateMultiQuizQuestionsLegacy(
             mergedMedia.push(mediaItem);
           }
         });
-        console.log(`📁 Added ${sourceQuiz.media.length} media items from "${sourceQuiz.title}"`);
+
       }
 
       // Select questions (limited by actual available questions)
       const actualCount = Math.min(selectedCount, sourceQuestions.length);
       const selectedQuestions = sourceQuestions.slice(0, actualCount);
       
-      console.log(`🎯 Final selection for "${sourceQuiz.title}": ${actualCount} questions selected from ${sourceQuestions.length} available`);
+
       
       // Add source metadata to each question and ensure proper structure
       const questionsWithMetadata = selectedQuestions.map((q, questionIndex) => {
@@ -245,17 +245,17 @@ async function generateMultiQuizQuestionsLegacy(
         const updateMediaReferences = (text: string): string => {
           if (!text || typeof text !== 'string') return text;
           
-          console.log(`🔍 Processing text for media references: "${text.substring(0, 100)}..."`);
+
           
           // Replace [img:X] and [audio:X] references
           return text.replace(/\[(img|audio):(\d+)\]/g, (match, type, num) => {
             const oldIndex = parseInt(num) - 1; // Convert to 0-based
-            console.log(`🔍 Found media reference: ${match}, oldIndex: ${oldIndex}`);
+
             
             // Check if this index exists in the source quiz media
             if (sourceQuiz.media && oldIndex >= 0 && oldIndex < sourceQuiz.media.length) {
               const sourceMediaItem = sourceQuiz.media[oldIndex];
-              console.log(`📋 Source media item:`, { id: sourceMediaItem.id || `${sourceQuiz.id}_${oldIndex}`, type: sourceMediaItem.type, name: sourceMediaItem.name });
+
               
               // Ensure media item has a unique ID
               if (!sourceMediaItem.id) {
@@ -272,17 +272,17 @@ async function generateMultiQuizQuestionsLegacy(
                 // Media item not found in merged array, add it now
                 mergedMedia.push({...sourceMediaItem});
                 newIndex = mergedMedia.length - 1;
-                console.log(`➕ Added media item to merged array at index ${newIndex}:`, { id: sourceMediaItem.id, name: sourceMediaItem.name });
+
               } else {
-                console.log(`✅ Found media item in merged array at index ${newIndex}`);
+
               }
               
               const newReference = `[${type}:${newIndex + 1}]`;
-              console.log(`🔄 Updated reference: ${match} -> ${newReference}`);
+
               return newReference;
             } else {
-              console.warn(`⚠️ Media reference ${match} not found in source media array (length: ${sourceQuiz.media?.length || 0})`);
-              console.warn(`⚠️ Available media in source:`, sourceQuiz.media?.map((m, i) => `${i}: ${m.name}`));
+
+
             }
             
             return match; // Return original if not found
@@ -290,17 +290,17 @@ async function generateMultiQuizQuestionsLegacy(
         };
         
         // Update question text and options with media references
-        console.log(`🔧 Updating media references for question: "${updatedQ.substring(0, 50)}..."`);
-        console.log(`🔧 Source quiz media items: ${sourceQuiz.media?.length || 0}`);
-        console.log(`🔧 Current merged media items: ${mergedMedia.length}`);
+
+
+
         
         updatedQ = updateMediaReferences(updatedQ);
         updatedO = updatedO.map(option => 
           typeof option === 'string' ? updateMediaReferences(option) : option
         );
         
-        console.log(`✅ Updated question text: "${updatedQ.substring(0, 50)}..."`);
-        console.log(`✅ Updated options:`, updatedO.map(o => typeof o === 'string' ? o.substring(0, 30) : o));
+
+
         
         return {
           q: updatedQ,
@@ -323,10 +323,10 @@ async function generateMultiQuizQuestionsLegacy(
         actualQuestions: actualCount
       });
 
-      console.log(`✅ Selected ${actualCount}/${selectedCount} questions from "${sourceQuiz.title}"`);
+
       
     } catch (error) {
-      console.error(`❌ Error processing source quiz ${source.quizId}:`, error);
+
     }
   }
 
@@ -349,7 +349,7 @@ async function generateMultiQuizQuestionsLegacy(
         actualQuestions: manualQuestions.length
       });
 
-      console.log(`📝 Added ${manualQuestions.length} manual questions`);
+
     }
   }
 
@@ -361,8 +361,8 @@ async function generateMultiQuizQuestionsLegacy(
     if (finalPreserveQuizOrder) {
       // For preserved order: DO NOT redistribute questions across sections
       // Instead, warn user and use all questions (respecting section boundaries)
-      console.warn(`⚠️ Preserve Quiz Order is enabled but total questions (${mergedQuestions.length}) exceed limit (${quiz.questionLimit})`);
-      console.warn(`⚠️ Keeping all questions to preserve section integrity. Disable 'Preserve Quiz Order' to apply overall limit.`);
+
+
       finalQuestions = mergedQuestions; // Keep all questions to preserve section boundaries
     } else {
       // Fully random: use Fisher-Yates shuffle then trim
@@ -372,17 +372,17 @@ async function generateMultiQuizQuestionsLegacy(
         [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
       }
       finalQuestions = shuffledQuestions.slice(0, quiz.questionLimit);
-      console.log(`🔀 Applied Fisher-Yates shuffle before trimming to ${quiz.questionLimit} questions`);
+
     }
     metadata.finalLimit = quiz.questionLimit;
-    console.log(`🎯 Applied final limit: ${finalQuestions.length}/${mergedQuestions.length} questions`);
+
   }
 
   // Handle randomization based on quiz settings
   if (quiz.randomize) {
     if (finalPreserveQuizOrder) {
       // ✅ PRESERVE ORDER + RANDOMIZE: Randomize within each section only
-      console.log(`🎲 SECTION-WISE RANDOMIZATION: Randomizing questions within each section (preserve section boundaries)`);
+
       
       // Group questions by source to maintain sections
       const groupedBySource: { [key: string]: Question[] } = {};
@@ -406,23 +406,23 @@ async function generateMultiQuizQuestionsLegacy(
         }
         
         randomizedQuestions.push(...sourceQuestions);
-        console.log(`🔀 Randomized ${sourceQuestions.length} questions within section: ${sourceId}`);
+
       });
       
       finalQuestions = randomizedQuestions;
-      console.log(`🎲 Section-wise randomization complete: ${finalQuestions.length} questions randomized within their sections`);
+
       
     } else {
       // FULLY RANDOM: Randomize across all questions (original behavior)
-      console.log(`🎲 FULL RANDOMIZATION: Randomizing all questions across entire quiz`);
+
       for (let i = finalQuestions.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [finalQuestions[i], finalQuestions[j]] = [finalQuestions[j], finalQuestions[i]];
       }
-      console.log(`🔀 Applied Fisher-Yates shuffle to all ${finalQuestions.length} questions`);
+
     }
   } else {
-    console.log(`📚 NO RANDOMIZATION: Questions kept in original order`);
+
   }
 
   // Helper function to group questions by their source
@@ -443,10 +443,10 @@ async function generateMultiQuizQuestionsLegacy(
       const j = Math.floor(Math.random() * (i + 1));
       [finalQuestions[i], finalQuestions[j]] = [finalQuestions[j], finalQuestions[i]];
     }
-    console.log('🔀 Applied Fisher-Yates random shuffle across all sources');
+
   } else {
     // Quiz order preserved: maintain source grouping AND original order within groups
-    console.log('📚 Preserving quiz order - maintaining source groups and original order within groups');
+
     
     const groupedQuestions = groupQuestionsBySource(finalQuestions);
     const regroupedQuestions: Question[] = [];
@@ -476,7 +476,7 @@ async function generateMultiQuizQuestionsLegacy(
       const sourceQuestions = groupedQuestions[sourceId];
       if (!sourceQuestions || sourceQuestions.length === 0) return;
       
-      console.log(`📖 Processing source group: ${sourceId} with ${sourceQuestions.length} questions`);
+
       
       // Sort by original index to maintain the original order from the source quiz
       const sortedGroup = [...sourceQuestions].sort((a, b) => {
@@ -487,22 +487,22 @@ async function generateMultiQuizQuestionsLegacy(
       
       // Add this group to the final questions in original order
       regroupedQuestions.push(...sortedGroup);
-      console.log(`✅ Added ${sortedGroup.length} questions from source: ${sourceId} in original order`);
+
     });
     
     finalQuestions = regroupedQuestions;
-    console.log('📚 Quiz order preserved: questions grouped by source, maintained original order within groups');
+
   }
 
   metadata.totalQuestions = finalQuestions.length;
 
-  console.log('🎉 Multi-quiz generation complete:', {
+  console.log('🎉 Multi-Quiz generation complete:', {
     sources: metadata.sources.length,
     totalQuestions: metadata.totalQuestions,
     finalLimit: metadata.finalLimit
   });
 
-  console.log(`📁 Final merged media: ${mergedMedia.length} items total`);
+
 
   return {
     questions: finalQuestions,

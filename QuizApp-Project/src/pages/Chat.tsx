@@ -53,32 +53,28 @@ export const Chat: React.FC = () => {
 
   const loadData = async () => {
     if (!user) {
-      console.log('❌ No user for loadData');
+
       return;
     }
     
-    console.log('🔍 Loading chat data for user:', user.id, user.username);
+
     
     try {
       // Load chat groups where user is a member
-      console.log('📡 Fetching chat groups...');
+
       const allGroups = await storage.getChatGroups() || [];
-      console.log('📊 All groups from storage:', allGroups);
+
       
       // Filter for user's groups (check both string and UUID formats)
       const userGroups = allGroups.filter(g => {
         const isMember = g.members.includes(user.id) || g.members.includes(user.username);
         const isCreator = g.creator === user.id || g.creator === user.username;
-        console.log(`📝 Group ${g.name}: member=${isMember}, creator=${isCreator}`, {
-          groupMembers: g.members,
-          groupCreator: g.creator,
-          userId: user.id,
-          username: user.username
-        });
+
+  
         return isMember || isCreator;
       });
       
-      console.log('✅ User groups filtered:', userGroups);
+
       setGroups(userGroups);
       
       // Load user's quizzes for sharing
@@ -93,14 +89,10 @@ export const Chat: React.FC = () => {
       const users = await storage.getUsers();
       setAllUsers(users.filter(u => u.id !== user.id));
       
-      console.log('📊 Final chat data loaded:', {
-        groups: userGroups.length,
-        quizzes: allQuizzes.length,
-        users: users.length
-      });
+
       
     } catch (error) {
-      console.error('❌ Failed to load chat data:', error);
+
       toast.error('Failed to load chat data');
     }
   };
@@ -110,7 +102,7 @@ export const Chat: React.FC = () => {
       const groupMessages = await storage.getChatMessages(groupId) || [];
       setMessages(groupMessages.sort((a, b) => a.timestamp - b.timestamp));
     } catch (error) {
-      console.error('Failed to load messages:', error);
+
       toast.error('Failed to load messages');
     }
   };
@@ -190,7 +182,7 @@ export const Chat: React.FC = () => {
     if (isRefreshing) return;
     
     setIsRefreshing(true);
-    console.log('🔄 Manual refresh triggered');
+
     
     try {
       await loadData();
@@ -199,7 +191,7 @@ export const Chat: React.FC = () => {
       }
       toast.success("Chat refreshed!");
     } catch (error) {
-      console.error('Failed to refresh chat:', error);
+
       toast.error("Failed to refresh chat");
     } finally {
       setIsRefreshing(false);
@@ -210,19 +202,19 @@ export const Chat: React.FC = () => {
   useEffect(() => {
     if (!autoRefresh || !selectedGroup) return;
     
-    console.log('🔄 Auto-refresh enabled for group:', selectedGroup);
+
     
     const interval = setInterval(async () => {
-      console.log('🔄 Auto-refreshing messages...');
+
       try {
         await loadMessages(selectedGroup);
       } catch (error) {
-        console.error('Auto-refresh failed:', error);
+
       }
     }, 3000); // 3-second refresh
     
     return () => {
-      console.log('🔄 Auto-refresh disabled');
+
       clearInterval(interval);
     };
   }, [autoRefresh, selectedGroup]);
@@ -232,11 +224,11 @@ export const Chat: React.FC = () => {
     if (!autoRefresh || !user) return;
     
     const groupInterval = setInterval(async () => {
-      console.log('🔄 Auto-refreshing groups...');
+
       try {
         await loadData();
       } catch (error) {
-        console.error('Group auto-refresh failed:', error);
+
       }
     }, 10000); // 10-second refresh for groups
     
@@ -266,17 +258,17 @@ export const Chat: React.FC = () => {
       type: 'group',
     };
     
-    console.log('🆕 Creating new group:', newGroup);
+
 
     try {
-      console.log('💾 Saving group to storage...');
+
       await storage.saveChatGroup(newGroup);
-      console.log('✅ Group saved to storage successfully');
+
       
       // Add to local state immediately
       setGroups(prev => {
         const updated = [...prev, newGroup];
-        console.log('📊 Updated local groups:', updated);
+
         return updated;
       });
       
@@ -294,12 +286,12 @@ export const Chat: React.FC = () => {
       
       // Reload data to verify persistence
       setTimeout(() => {
-        console.log('🔄 Reloading data to verify persistence...');
+
         loadData();
       }, 1000);
       
     } catch (error) {
-      console.error('❌ Failed to create group:', error);
+
       toast.error('Failed to create group');
     }
   };
@@ -309,34 +301,28 @@ export const Chat: React.FC = () => {
 
     try {
       const inputCode = joinGroupCode.trim().toUpperCase();
-      console.log('🔍 Trying to join with code:', inputCode);
+
       
       // Get ALL groups (not just user's groups) to find the one with matching access code
       const allGroups = await storage.getAllChatGroups() || [];
-      console.log('📊 All available groups:', allGroups.map(g => ({
-        id: g.id,
-        name: g.name,
-        accessCode: g.accessCode,
-        isPrivate: g.isPrivate,
-        members: g.members
-      })));
+
       
       // Find group with matching access code (case insensitive)
       const group = allGroups.find(g => {
         if (!g.accessCode) return false;
         const groupCode = g.accessCode.toUpperCase();
-        console.log(`🔍 Comparing "${inputCode}" with "${groupCode}" (${g.name})`);
+
         return groupCode === inputCode;
       });
 
       if (!group) {
-        console.error('❌ No group found with access code:', inputCode);
-        console.log('Available codes:', allGroups.filter(g => g.accessCode).map(g => g.accessCode));
+
+
         toast.error("Invalid access code");
         return;
       }
       
-      console.log('✅ Found group:', group);
+
 
       if (group.members.includes(user.id)) {
         toast.error("You're already a member of this group");
@@ -369,7 +355,7 @@ export const Chat: React.FC = () => {
       setSelectedGroup(group.id);
       toast.success(`Joined group: ${group.name}`);
     } catch (error) {
-      console.error('Failed to join group:', error);
+
       toast.error('Failed to join group');
     }
   };
@@ -408,7 +394,7 @@ export const Chat: React.FC = () => {
       setShowStartDirectChat(false);
       toast.success(`Started chat with ${username}`);
     } catch (error) {
-      console.error('Failed to start direct chat:', error);
+
       toast.error('Failed to start chat');
     }
   };

@@ -22,7 +22,7 @@ export const useRecursiveQuestionCount = (quiz: Quiz | null) => {
         const count = await getDisplayQuestionCount(quiz, storage);
         setQuestionCount(count);
       } catch (error) {
-        console.error('Error getting recursive question count:', error);
+
         // Fallback to direct count
         setQuestionCount(quiz.questions?.length || 0);
       }
@@ -62,7 +62,7 @@ export const useRecursiveQuestionCounts = (quizzes: Quiz[]) => {
               const count = await getDisplayQuestionCount(quiz, storage);
               return { id: quiz.id, count };
             } catch (error) {
-              console.error(`Error getting question count for quiz ${quiz.id}:`, error);
+
               return { id: quiz.id, count: quiz.questions?.length || 0 };
             }
           });
@@ -75,7 +75,7 @@ export const useRecursiveQuestionCounts = (quizzes: Quiz[]) => {
         
         setQuestionCounts(counts);
       } catch (error) {
-        console.error('Error getting question counts:', error);
+
         // Fallback to direct counts
         const fallbackCounts = new Map();
         quizzes.forEach(quiz => {

@@ -139,7 +139,7 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
             const count = await getDisplayQuestionCount(quiz, storage);
             counts.set(quiz.id, count);
           } catch (error) {
-            console.error(`Error getting recursive count for ${quiz.id}:`, error);
+
             counts.set(quiz.id, quiz.questions?.length || 0);
           }
         })
@@ -147,7 +147,7 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
       
       setRecursiveQuestionCounts(counts);
       setLoadingCounts(false);
-      console.log('🔢 Loaded recursive question counts for validation:', Object.fromEntries(counts.entries()));
+
     };
 
     loadRecursiveQuestionCounts();

@@ -58,16 +58,16 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
   try {
     // Validate and convert input text
     if (!text) {
-      console.warn('LatexRenderer: Empty or null text input');
+
       return <span className="text-yellow-500">[No content]</span>;
     }
     
     if (typeof text !== 'string') {
-      console.warn('LatexRenderer: Non-string text input:', typeof text, text);
+
       // Try to convert to string if possible
       const convertedText = String(text);
       if (convertedText === '[object Object]') {
-        console.error('LatexRenderer: Cannot render object as text:', text);
+
         return <span className="text-red-500">[Invalid content type: {typeof text}]</span>;
       }
       // Use the converted text
@@ -109,7 +109,7 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
           final.push(<span key={`fallback-${idx}`}>{String(part)}</span>);
         }
       } catch (error) {
-        console.error('Error processing LatexRenderer part:', error, part);
+
         final.push(<span key={`error-${idx}`} className="text-red-500">[Render Error]</span>);
       }
     });
@@ -118,7 +118,7 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
     const validElements = final.filter(f => f !== null && f !== undefined);
     return <span>{validElements.length > 0 ? validElements : text}</span>;
   } catch (error) {
-    console.error('Error in LatexRenderer:', error, { text, media });
+
     return <span className="text-red-500">[Invalid content: {text?.substring(0, 50) || 'undefined'}...]</span>;
   }
 };

@@ -6,7 +6,7 @@ interface MusicPlayerRestoreProps {
   onRestore: () => void;
 }
 
-export const MusicPlayerRestore: React.FC<MusicPlayerRestoreProps> = ({ onRestore }) => {
+export const MusicPlayerRestore = React.memo<MusicPlayerRestoreProps>(({ onRestore }) => {
   const { musicFiles, currentlyPlaying, isPlaying } = useMusicContext();
 
   // Only show if there are music files
@@ -34,4 +34,4 @@ export const MusicPlayerRestore: React.FC<MusicPlayerRestoreProps> = ({ onRestor
       </div>
     </div>
   );
-};
+});

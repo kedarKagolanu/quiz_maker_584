@@ -73,7 +73,7 @@ export const QuizExplorer: React.FC<QuizExplorerProps> = ({
       setQuizDetails(detailsMap);
       
     } catch (error) {
-      console.error('Error loading folder contents:', error);
+
     } finally {
       setLoading(false);
     }

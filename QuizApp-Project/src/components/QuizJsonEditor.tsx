@@ -28,7 +28,13 @@ export const QuizJsonEditor: React.FC<QuizJsonEditorProps> = ({ value, onChange,
   }, [viewMode, value]);
 
   const handleRawChange = (newValue: string) => {
-    onChange(newValue);
+    // Basic input sanitization - prevent script injection
+    const sanitizedValue = newValue
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/javascript:/gi, '')
+      .replace(/on\w+\s*=/gi, '');
+    
+    onChange(sanitizedValue);
     onError("", null, null);
   };
 
