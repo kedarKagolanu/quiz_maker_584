@@ -172,9 +172,14 @@ export const QuizBrowser: React.FC = () => {
   };
 
   const handleQuizClick = (quiz: Quiz, advanced: boolean = false) => {
-    // Go to customizer first, then to quiz
-    const path = advanced ? `/quiz/${quiz.id}/customize-advanced` : `/quiz/${quiz.id}/customize`;
-    navigate(path);
+    // For multi-quiz, always go to advanced customizer to handle sources
+    if (quiz.multiQuizSources && !advanced) {
+      navigate(`/quiz/${quiz.id}/customize-advanced`);
+    } else {
+      // Go to customizer first, then to quiz
+      const path = advanced ? `/quiz/${quiz.id}/customize-advanced` : `/quiz/${quiz.id}/customize`;
+      navigate(path);
+    }
   };
 
   if (loading) {
