@@ -55,6 +55,28 @@ const MusicPlayer = React.memo<MusicPlayerProps>(({ isAdvanced = false }) => {
     setRepeatMode(modes[(currentIndex + 1) % modes.length]);
   };
 
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const progress = clickX / rect.width;
+    const newTime = progress * duration;
+    seekTo(newTime);
+  };
+
+  const getTrackDisplayName = (track: any) => {
+    if (!track) return "No track selected";
+    // Extract filename without extension
+    let name = track.name || track.file?.name || "Unknown Track";
+    if (name.includes('.')) {
+      name = name.substring(0, name.lastIndexOf('.'));
+    }
+    // Clean up common music file patterns
+    name = name.replace(/^\d+[\s\-\.]*/, ''); // Remove track numbers
+    name = name.replace(/[\-_]/g, ' '); // Replace dashes/underscores with spaces
+    return name;
+  };
+
   if (!isVisible) {
     return null;
   }
@@ -76,7 +98,7 @@ const MusicPlayer = React.memo<MusicPlayerProps>(({ isAdvanced = false }) => {
           
           <div className="text-sm">
             <div className="text-terminal-bright font-medium truncate max-w-[150px]">
-              {currentTrack?.name || "Unknown Track"}
+              {getTrackDisplayName(currentTrack)}
             </div>
           </div>
 
@@ -116,7 +138,7 @@ const MusicPlayer = React.memo<MusicPlayerProps>(({ isAdvanced = false }) => {
 
       <div className="mb-3">
         <div className="text-terminal-bright font-medium truncate">
-          {currentTrack?.name || "Unknown Track"}
+          {getTrackDisplayName(currentTrack)}
         </div>
         <div className="text-terminal-dim text-sm">
           {formatTime(currentTime)} / {formatTime(duration)}
@@ -124,9 +146,12 @@ const MusicPlayer = React.memo<MusicPlayerProps>(({ isAdvanced = false }) => {
       </div>
 
       <div className="mb-4">
-        <div className="w-full bg-terminal-dim rounded-full h-2 mb-2">
+        <div 
+          className="w-full bg-terminal-dim rounded-full h-2 mb-2 cursor-pointer hover:h-3 transition-all"
+          onClick={handleSeek}
+        >
           <div
-            className="bg-terminal-accent h-2 rounded-full transition-all duration-300"
+            className="bg-terminal-accent h-full rounded-full transition-all duration-300"
             style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
           />
         </div>

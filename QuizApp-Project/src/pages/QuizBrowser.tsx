@@ -27,6 +27,20 @@ export const QuizBrowser: React.FC = () => {
   // Get recursive question counts for all quizzes
   const { questionCounts } = useRecursiveQuestionCounts(quizzes);
 
+  // Calculate folder quiz counts dynamically
+  const getFolderQuizCount = (folderPath: string, isRecursive: boolean = true): number => {
+    if (isRecursive) {
+      // Count all quizzes in this folder and its subfolders
+      return quizzes.filter(quiz => 
+        quiz.folderPath?.startsWith(folderPath + '/') || 
+        quiz.folderPath === folderPath
+      ).length;
+    } else {
+      // Count only direct quizzes in this folder
+      return quizzes.filter(quiz => quiz.folderPath === folderPath).length;
+    }
+  };
+
   useEffect(() => {
     if (!user) {
       navigate("/");
@@ -280,7 +294,7 @@ export const QuizBrowser: React.FC = () => {
                       className={activeFilter === 'folder' && selectedFolder === folder.id ? 'bg-terminal-accent/20' : ''}
                     >
                       <Folder className="w-4 h-4 mr-1" />
-                      {folder.name} ({folder.totalQuizzes || 0} quiz{(folder.totalQuizzes || 0) !== 1 ? 'zes' : ''}
+                      {folder.name} ({getFolderQuizCount(folder.path)} quiz{getFolderQuizCount(folder.path) !== 1 ? 'zes' : ''}
                       {folder.totalFolders ? `, ${folder.totalFolders} folder${folder.totalFolders !== 1 ? 's' : ''}` : ''})
                     </TerminalButton>
                   ))}
@@ -331,7 +345,7 @@ export const QuizBrowser: React.FC = () => {
                       <Folder className="w-4 h-4 text-blue-400" />
                       <span className="text-terminal-bright font-semibold">{folder.name}</span>
                       <span className="text-xs text-terminal-dim">
-                        ({folder.totalQuizzes || 0} quiz{(folder.totalQuizzes || 0) !== 1 ? 'es' : ''})
+                        ({getFolderQuizCount(folder.path)} quiz{getFolderQuizCount(folder.path) !== 1 ? 'es' : ''})
                       </span>
                     </div>
                     {folder.description && (

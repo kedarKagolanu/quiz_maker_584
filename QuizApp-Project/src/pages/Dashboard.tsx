@@ -332,22 +332,28 @@ export const Dashboard: React.FC = () => {
             {tree.quizzes.map(quiz => (
               <div 
                 key={quiz.id}
-                className="flex items-center justify-between border border-terminal-accent/30 p-3 rounded ml-8"
-                style={{ marginLeft: `${indent + 20}px` }}
+                className="flex items-center justify-between border border-terminal-accent/30 p-3 rounded"
+                style={{ marginLeft: `${indent + 32}px` }}
               >
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-terminal-dim" />
+                <div className="flex items-center gap-3">
+                  <FileText className="w-4 h-4 text-terminal-accent" />
                   <div>
-                    <div className="text-terminal-bright">{quiz.title}</div>
+                    <div className="text-terminal-bright font-medium">{quiz.title}</div>
                     <div className="text-sm text-terminal-dim">
-                      {questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (including sources)" : ""} • {quiz.isPublic ? "Public" : "Shared"}
+                      {questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (multi-quiz)" : ""} • {quiz.isPublic ? "Public" : "Shared"}
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}/customize`)}>customize & take</TerminalButton>
-                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}`)}>take now</TerminalButton>
-                  <TerminalButton onClick={() => navigate(`/leaderboard/${quiz.id}`)}>leaderboard</TerminalButton>
+                <div className="flex gap-2 flex-wrap">
+                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}/customize`)}>
+                    customize & take
+                  </TerminalButton>
+                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}`)}>
+                    take now
+                  </TerminalButton>
+                  <TerminalButton onClick={() => navigate(`/leaderboard/${quiz.id}`)}>
+                    leaderboard
+                  </TerminalButton>
                 </div>
               </div>
             ))}
@@ -424,22 +430,28 @@ export const Dashboard: React.FC = () => {
       <div className="mt-6 space-y-6">
         <div>
           <TerminalLine prefix="#">Actions</TerminalLine>
-          <div className="flex flex-wrap gap-3 mt-2 ml-6">
-            <TerminalButton onClick={() => navigate("/create")}>create quiz</TerminalButton>
-            <TerminalButton onClick={() => navigate("/my-quizzes")}>my quizzes ({myQuizzes.length})</TerminalButton>
-            <TerminalButton onClick={() => navigate("/browse-quizzes")}>
-              <FileText className="w-4 h-4 inline mr-1" />browse & take quizzes
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-3 ml-6">
+            <TerminalButton onClick={() => navigate("/create")} className="flex items-center justify-center">
+              create quiz
             </TerminalButton>
-            <TerminalButton onClick={() => navigate("/chat")}>
-              <MessageCircle className="w-4 h-4 inline mr-1" />chat groups
+            <TerminalButton onClick={() => navigate("/my-quizzes")} className="flex items-center justify-center">
+              my quizzes ({myQuizzes.length})
             </TerminalButton>
-            <TerminalButton onClick={() => navigate("/music-library")}>
-              <Music className="w-4 h-4 inline mr-1" />music library
+            <TerminalButton onClick={() => navigate("/browse-quizzes")} className="flex items-center justify-center">
+              <FileText className="w-4 h-4 mr-2" />browse quizzes
             </TerminalButton>
-            <TerminalButton onClick={() => setShowAccessCodeInput(true)}>
-              <Send className="w-4 h-4 inline mr-1" />enter access code
+            <TerminalButton onClick={() => navigate("/chat")} className="flex items-center justify-center">
+              <MessageCircle className="w-4 h-4 mr-2" />chat groups
             </TerminalButton>
-            <TerminalButton onClick={handleLogout}>logout</TerminalButton>
+            <TerminalButton onClick={() => navigate("/music-library")} className="flex items-center justify-center">
+              <Music className="w-4 h-4 mr-2" />music library
+            </TerminalButton>
+            <TerminalButton onClick={() => setShowAccessCodeInput(true)} className="flex items-center justify-center">
+              <Send className="w-4 h-4 mr-2" />access code
+            </TerminalButton>
+            <TerminalButton onClick={handleLogout} className="flex items-center justify-center">
+              logout
+            </TerminalButton>
           </div>
         </div>
 
