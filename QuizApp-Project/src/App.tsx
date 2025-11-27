@@ -1,7 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { MusicPlayer } from "@/components/MusicPlayer";
@@ -40,7 +39,6 @@ const LoadingFallback = () => (
   </div>
 );
 
-const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
@@ -50,42 +48,40 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const App = () => (
   <ThemeProvider>
     <MusicProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              <Route path="/" element={<Auth />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/create" element={<ProtectedRoute><QuizCreator /></ProtectedRoute>} />
-              <Route path="/my-quizzes" element={<ProtectedRoute><MyQuizzesExplorer /></ProtectedRoute>} />
-              <Route path="/quiz-permissions/:quizId" element={<ProtectedRoute><QuizPermissions /></ProtectedRoute>} />
-              <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-              <Route path="/browse-quizzes" element={<ProtectedRoute><QuizBrowser /></ProtectedRoute>} />
-              <Route path="/music-library" element={<ProtectedRoute><MusicLibrary /></ProtectedRoute>} />
-              <Route path="/quiz/:id/customize" element={<ProtectedRoute><QuizCustomizer /></ProtectedRoute>} />
-              <Route path="/quiz/:id/customize-advanced" element={<ProtectedRoute><QuizCustomizerAdvanced /></ProtectedRoute>} />
-              <Route path="/quiz/:quizId/advanced" element={<ProtectedRoute><UnifiedQuizAdvanced /></ProtectedRoute>} />
-              <Route path="/advanced" element={<ProtectedRoute><UnifiedQuizAdvanced /></ProtectedRoute>} />
-              <Route path="/quiz/:id/take" element={<ProtectedRoute><QuizTaker /></ProtectedRoute>} />
-              <Route path="/profile/:username?" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              <Route path="/quiz/:id" element={<ProtectedRoute><QuizTaker /></ProtectedRoute>} />
-              <Route path="/results/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />
-              <Route path="/leaderboard/:id" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
-              <Route path="/my-quizzes-explorer" element={<ProtectedRoute><MyQuizzesExplorer /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-        <MusicPlayer isAdvanced={true} />
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                <Route path="/" element={<Auth />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/create" element={<ProtectedRoute><QuizCreator /></ProtectedRoute>} />
+                <Route path="/my-quizzes" element={<ProtectedRoute><MyQuizzesExplorer /></ProtectedRoute>} />
+                <Route path="/quiz-permissions/:quizId" element={<ProtectedRoute><QuizPermissions /></ProtectedRoute>} />
+                <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+                <Route path="/browse-quizzes" element={<ProtectedRoute><QuizBrowser /></ProtectedRoute>} />
+                <Route path="/music-library" element={<ProtectedRoute><MusicLibrary /></ProtectedRoute>} />
+                <Route path="/quiz/:id/customize" element={<ProtectedRoute><QuizCustomizer /></ProtectedRoute>} />
+                <Route path="/quiz/:id/customize-advanced" element={<ProtectedRoute><QuizCustomizerAdvanced /></ProtectedRoute>} />
+                <Route path="/quiz/:quizId/advanced" element={<ProtectedRoute><UnifiedQuizAdvanced /></ProtectedRoute>} />
+                <Route path="/advanced" element={<ProtectedRoute><UnifiedQuizAdvanced /></ProtectedRoute>} />
+                <Route path="/quiz/:id/take" element={<ProtectedRoute><QuizTaker /></ProtectedRoute>} />
+                <Route path="/profile/:username?" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/quiz/:id" element={<ProtectedRoute><QuizTaker /></ProtectedRoute>} />
+                <Route path="/results/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />
+                <Route path="/leaderboard/:id" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
+                <Route path="/my-quizzes-explorer" element={<ProtectedRoute><MyQuizzesExplorer /></ProtectedRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+          <MusicPlayer isAdvanced={true} />
+        </TooltipProvider>
+      </AuthProvider>
     </MusicProvider>
   </ThemeProvider>
 );
