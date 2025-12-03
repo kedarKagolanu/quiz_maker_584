@@ -225,7 +225,12 @@ function shouldSkipCaching(request) {
     request.method !== 'GET' ||
     request.url.includes('/auth/') ||
     request.url.includes('chrome-extension://') ||
-    request.url.includes('browser-sync')
+    request.url.includes('browser-sync') ||
+    request.url.includes('supabase.co') || // Let application cache handle Supabase API calls
+    request.url.includes('/@vite/') || // Skip Vite HMR requests
+    request.url.includes('?t=') || // Skip Vite timestamp requests
+    request.url.includes('/src/') || // Skip source files in dev mode
+    request.url.includes('localhost:8080') && request.url.includes('.tsx') // Skip TypeScript files in dev
   );
 }
 
