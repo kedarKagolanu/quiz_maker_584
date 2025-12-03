@@ -13,6 +13,7 @@ export const ThemeSelector: React.FC = () => {
     { value: 'sunset', label: 'Sunset', description: 'Warm orange glow' },
     { value: 'minimal', label: 'Minimal', description: 'Clean and simple' },
     { value: 'reading', label: 'Reading', description: 'Eye-friendly warm tones' },
+    { value: 'soft', label: 'Soft', description: 'Gentle muted colors' },
   ];
 
   return (

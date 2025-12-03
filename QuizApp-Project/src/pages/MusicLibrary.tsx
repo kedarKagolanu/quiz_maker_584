@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
 import { useMusicContext } from "@/contexts/MusicContext";
-import { Upload, Play, Pause, Music, User, Globe, Clock, Download, Volume2, HelpCircle } from "lucide-react";
+import { Upload, Play, Pause, Music, User, Globe, Clock, Download, Volume2, HelpCircle, Trash2 } from "lucide-react";
 import { PageDescription } from "@/components/PageDescription";
 import { toast } from "sonner";
 
@@ -138,7 +138,7 @@ export const MusicLibrary: React.FC = () => {
       return;
     }
 
-    // Play new music using context
+    // Play new music using context (keep it simple like it was before)
     playMusic(musicFile);
   };
 
@@ -148,6 +148,31 @@ export const MusicLibrary: React.FC = () => {
 
   const handleSkip = (seconds: number) => {
     skipSeconds(seconds);
+  };
+
+  const handleDeleteMusic = async (file: any) => {
+    if (!user || file.uploadedBy !== user.id) {
+      toast.error('You can only delete your own music files');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete "${file.title}"?`)) {
+      return;
+    }
+
+    try {
+      // Stop playing if this file is currently playing
+      if (currentlyPlaying === file.id) {
+        pauseMusic();
+      }
+
+      await storage.deleteMusicFile(file.id);
+      await loadMusicFiles(); // Reload the list
+      toast.success(`"${file.title}" deleted successfully`);
+    } catch (error) {
+      console.error('Error deleting music file:', error);
+      toast.error('Failed to delete music file. Please try again.');
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -303,6 +328,20 @@ export const MusicLibrary: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Delete button - only for files uploaded by current user */}
+                    {file.uploadedBy === user?.id && (
+                      <div className="ml-4">
+                        <TerminalButton
+                          onClick={() => handleDeleteMusic(file)}
+                          variant="destructive"
+                          className="text-xs"
+                          title="Delete this music file"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </TerminalButton>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

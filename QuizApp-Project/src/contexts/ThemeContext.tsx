@@ -265,7 +265,7 @@ const injectThemeStyles = (preset: string, mode: string, gradientEnabled: boolea
 };
 
 export type ThemeMode = 'dark' | 'light';
-export type ThemePreset = 'terminal' | 'ocean' | 'forest' | 'sunset' | 'minimal' | 'white' | 'reading';
+export type ThemePreset = 'terminal' | 'ocean' | 'forest' | 'sunset' | 'minimal' | 'white' | 'reading' | 'soft';
 
 interface ThemeContextType {
   mode: ThemeMode;
@@ -399,6 +399,22 @@ const themePresets = {
       accent: '45 60% 50%',
       bright: '30 25% 15%',
       dim: '30 15% 50%',
+    }
+  },
+  soft: {
+    dark: {
+      background: '220 15% 18%',
+      foreground: '220 8% 75%',
+      accent: '220 12% 55%',
+      bright: '220 8% 85%',
+      dim: '220 6% 45%',
+    },
+    light: {
+      background: '220 20% 94%',
+      foreground: '220 15% 30%',
+      accent: '220 25% 65%',
+      bright: '220 15% 20%',
+      dim: '220 10% 55%',
     }
   }
 };

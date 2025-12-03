@@ -3,14 +3,17 @@ import { getDisplayQuestionCounts } from "@/lib/recursiveQuizResolver";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
+import { CacheMonitor } from "@/components/CacheMonitor";
+import { useCacheWarming } from "@/hooks/useCacheWarming";
 import { storage } from "@/lib/storage";
 import { Quiz, QuizFolder } from "@/types/quiz";
-import { ChevronRight, ChevronDown, Folder, FileText, Send, MessageCircle, Music } from "lucide-react";
+import { ChevronRight, ChevronDown, Folder, FileText, Send, MessageCircle, Music, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { MusicUploader } from "@/components/MusicUploader";
 import { useTheme } from "@/contexts/ThemeContext";
 import { PageDescription } from "@/components/PageDescription";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 // Theme Hammer component - Nuclear theme testing
 const ThemeHammer: React.FC = () => {
@@ -179,6 +182,12 @@ export const Dashboard: React.FC = () => {
   const [showAccessCodeInput, setShowAccessCodeInput] = useState(false);
   const [accessCodeInput, setAccessCodeInput] = useState("");
   const [questionCounts, setQuestionCounts] = useState<Map<string, number>>(new Map());
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState('Loading dashboard...');
+  const [showCacheMonitor, setShowCacheMonitor] = useState(false);
+
+  // Warm up cache automatically
+  useCacheWarming();
 
   useEffect(() => {
     if (!user) {
@@ -187,8 +196,12 @@ export const Dashboard: React.FC = () => {
     }
 
     const loadData = async () => {
-      const allQuizzes = await storage.getQuizzes();
-      const allFolders = await storage.getFolders();
+      try {
+        setLoadingMessage('Loading quizzes...');
+        const allQuizzes = await storage.getQuizzes();
+        
+        setLoadingMessage('Loading folders...');
+        const allFolders = await storage.getFolders();
       
       // User's own quizzes
       setMyQuizzes(allQuizzes.filter((q) => q.creator === user.id));
@@ -225,26 +238,35 @@ export const Dashboard: React.FC = () => {
         };
       });
       
+      setLoadingMessage('Building folder tree...');
       // Build hierarchical folder tree with quizzes properly organized
       const tree = buildFolderTree(accessibleQuizzes, foldersWithStats);
       setAvailableFolderTree(tree);
       
-      // Get recursive question counts for all accessible quizzes
-      try {
-        const counts = await getDisplayQuestionCounts(accessibleQuizzes, storage);
-        setQuestionCounts(counts);
-      } catch (error) {
-
-        // Fallback to direct question counts
-        const fallbackCounts = new Map();
-        accessibleQuizzes.forEach(quiz => {
-          fallbackCounts.set(quiz.id, quiz.questions?.length || 0);
-        });
-        setQuestionCounts(fallbackCounts);
-      }
+      setLoadingMessage('Calculating question counts...');
+      // Use simple question counts instead of recursive analysis to prevent performance issues
+      const simpleQuestionCounts = new Map();
+      accessibleQuizzes.forEach(quiz => {
+        // For multi-quiz, use a simple estimation to avoid expensive recursive calls
+        if (quiz.multiQuizSources && quiz.multiQuizSources.length > 0) {
+          // Estimate based on sources count - don't do expensive recursive resolution
+          simpleQuestionCounts.set(quiz.id, quiz.multiQuizSources.length * 10); // Rough estimate
+        } else {
+          simpleQuestionCounts.set(quiz.id, quiz.questions?.length || 0);
+        }
+      });
+      setQuestionCounts(simpleQuestionCounts);
       
+      setLoadingMessage('Loading user statistics...');
       const userAttempts = await storage.getUserAttempts(user.id);
       setAttempts(userAttempts);
+      
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        setLoadingMessage('Error loading data. Please refresh the page.');
+      } finally {
+        setIsLoading(false);
+      }
     };
     loadData();
   }, [user, navigate]);
@@ -414,6 +436,15 @@ export const Dashboard: React.FC = () => {
 
   if (!user) return null;
 
+  // Use toast loading instead of full page loading
+  React.useEffect(() => {
+    if (isLoading && loadingMessage) {
+      toast.loading(loadingMessage, { id: 'dashboard-loading' });
+    } else {
+      toast.dismiss('dashboard-loading');
+    }
+  }, [isLoading, loadingMessage]);
+
   return (
     <Terminal title={`dashboard - ${user.username}`}>
       {/* Debug components hidden - uncomment for debugging */}
@@ -422,6 +453,21 @@ export const Dashboard: React.FC = () => {
       {/* <EmergencyTest /> */}
       <div className="flex items-center justify-between mb-4">
         <TerminalLine prefix="~">Welcome back, {user.username}!</TerminalLine>
+        <TerminalButton 
+          onClick={() => setShowCacheMonitor(!showCacheMonitor)}
+          variant="secondary"
+          size="sm"
+        >
+          📊 {showCacheMonitor ? 'Hide' : 'Show'} Cache
+        </TerminalButton>
+      </div>
+
+      {/* Cache Monitor */}
+      {showCacheMonitor && (
+        <CacheMonitor className="mb-6" />
+      )}
+
+      <div className="space-y-4">
         <TerminalButton onClick={() => navigate(`/profile/${user.username}`)}>
           view profile
         </TerminalButton>
@@ -431,8 +477,12 @@ export const Dashboard: React.FC = () => {
         <div>
           <TerminalLine prefix="#">Actions</TerminalLine>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-3 ml-6">
+            <TerminalButton onClick={() => navigate("/ai-generator")} className="flex items-center justify-center bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-purple-500/50 text-purple-300 hover:text-purple-200">
+              <Wand2 className="w-4 h-4 mr-2" />
+              🤖 AI quiz generator
+            </TerminalButton>
             <TerminalButton onClick={() => navigate("/create")} className="flex items-center justify-center">
-              create quiz
+              manual quiz creation
             </TerminalButton>
             <TerminalButton onClick={() => navigate("/my-quizzes")} className="flex items-center justify-center">
               my quizzes ({myQuizzes.length})

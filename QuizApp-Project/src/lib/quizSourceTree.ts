@@ -83,12 +83,15 @@ export async function getTotalLeafQuestions(
 ): Promise<number> {
   try {
     const tree = await buildQuizSourceTree(quiz, storage);
-    console.log('Quiz source tree analysis:', {
-      isMultiQuiz: !tree.isLeaf,
-      totalSources: tree.children.length,
-      leafQuestions: tree.leafQuestions,
-      directQuestions: tree.totalQuestions
-    });
+    // Reduce logging frequency to prevent console spam
+    if (Math.random() < 0.1) { // Only log 10% of the time
+      console.log('Quiz source tree analysis:', {
+        isMultiQuiz: !tree.isLeaf,
+        totalSources: tree.children.length,
+        leafQuestions: tree.leafQuestions,
+        directQuestions: tree.totalQuestions
+      });
+    }
     return tree.leafQuestions;
   } catch (error) {
 

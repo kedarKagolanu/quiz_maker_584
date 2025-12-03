@@ -185,14 +185,14 @@ export const QuizCustomizer: React.FC = () => {
     const params = new URLSearchParams();
     
     if (!customSettings.useDefault) {
-      if (customSettings.timeLimit !== null) {
+      if (customSettings.timeLimit !== null && customSettings.timeLimit !== undefined) {
         params.set('timeLimit', customSettings.timeLimit.toString());
       }
-      if (customSettings.perQuestionTimeLimit !== null) {
+      if (customSettings.perQuestionTimeLimit !== null && customSettings.perQuestionTimeLimit !== undefined) {
         params.set('perQuestionTimeLimit', customSettings.perQuestionTimeLimit.toString());
       }
       params.set('randomize', customSettings.randomize.toString());
-      if (customSettings.questionLimit !== null) {
+      if (customSettings.questionLimit !== null && customSettings.questionLimit !== undefined) {
         params.set('questionLimit', customSettings.questionLimit.toString());
       }
     }

@@ -15,8 +15,14 @@ export interface IStorageDriver {
   getQuizzes(): Promise<Quiz[]>;
   saveQuiz(quiz: Quiz): Promise<void>;
   getQuizById(id: string): Promise<Quiz | null>;
+  getFullQuizData?(id: string): Promise<Quiz | null>; // Optional method for full data
+  getQuizzesWithPagination?(limit?: number, offset?: number): Promise<Quiz[]>; // Optional pagination
   updateQuiz(quiz: Quiz): Promise<void>;
   deleteQuiz(id: string): Promise<void>;
+  
+  // User-specific operations (MISSING FROM INTERFACE!)
+  getUserQuizzes?(userId: string): Promise<Quiz[]>;
+  getPublicQuizzes?(): Promise<Quiz[]>;
   
   // Attempt operations
   getAttempts(): Promise<QuizAttempt[]>;
@@ -30,6 +36,11 @@ export interface IStorageDriver {
   updateFolder(folder: QuizFolder): Promise<void>;
   deleteFolder(id: string): Promise<void>;
   renameFolder(id: string, newName: string): Promise<void>;
+  
+  // User-specific folder operations (MISSING FROM INTERFACE!)
+  getUserFolders?(userId: string): Promise<QuizFolder[]>;
+  getFolderById?(id: string): Promise<QuizFolder | null>;
+  getFolderContents?(folderPath: string): Promise<{ quizzes: Quiz[], folders: QuizFolder[] }>;
   
   // Media operations (for future backend storage)
   saveMedia?(data: string, type: 'image' | 'audio', name: string): Promise<string>; // Returns URL/ID
@@ -56,15 +67,16 @@ export interface IStorageDriver {
   getQuizByAccessCode?(accessCode: string): Promise<Quiz | null>;
   getFolderByAccessCode?(accessCode: string): Promise<QuizFolder | null>;
   
-  // Chat operations
-  getChatGroups(): Promise<ChatGroup[]>;
-  saveChatGroup(group: ChatGroup): Promise<void>;
-  updateChatGroup(group: ChatGroup): Promise<void>;
-  deleteChatGroup(id: string): Promise<void>;
+  // Chat operations (FIXED: Made optional to match implementation)
+  getChatGroups?(): Promise<ChatGroup[]>;
+  getAllChatGroups?(): Promise<ChatGroup[]>;  // MISSING: Get ALL groups for access code lookup
+  saveChatGroup?(group: ChatGroup): Promise<void>;
+  updateChatGroup?(group: ChatGroup): Promise<void>;
+  deleteChatGroup?(id: string): Promise<void>;
   
-  getChatMessages(groupId: string): Promise<ChatMessage[]>;
-  saveChatMessage(message: ChatMessage): Promise<void>;
-  deleteChatMessage(id: string): Promise<void>;
+  getChatMessages?(groupId: string): Promise<ChatMessage[]>;
+  saveChatMessage?(message: ChatMessage): Promise<void>;
+  deleteChatMessage?(id: string): Promise<void>;
   
   // Music operations
   getMusicFiles?(): Promise<any[]>;

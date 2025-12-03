@@ -18,10 +18,10 @@ export const MusicUploader: React.FC = () => {
     if (!e.target.files || e.target.files.length === 0 || !user) return;
 
     const file = e.target.files[0];
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 50 * 1024 * 1024; // 50MB (increased limit)
 
     if (file.size > maxSize) {
-      toast.error('File too large. Maximum size is 10MB.');
+      toast.error('File too large. Maximum size is 50MB.');
       return;
     }
 
@@ -38,48 +38,54 @@ export const MusicUploader: React.FC = () => {
     try {
       toast.loading('Uploading music...');
 
-      // Upload to Supabase Storage
-      const fileName = `${user.id}/${Date.now()}_${file.name}`;
-      const { data, error } = await supabase.storage
-        .from('music')
-        .upload(fileName, file, {
-          contentType: file.type,
-          upsert: false
-        });
+      // Create music file metadata
+      const musicFile = {
+        id: `music_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+        title: file.name.replace(/\.[^/.]+$/, ""), // Remove file extension
+        filename: file.name,
+        uploadedBy: user.id,
+        uploaderName: user.email?.split('@')[0] || 'Unknown User',
+        showUploaderName: true,
+        uploadedAt: Date.now(),
+        duration: null, // Will be calculated on frontend if needed
+        fileSize: file.size
+      };
 
-      if (error) throw error;
+      console.log('🎵 Uploading music file:', {
+        file: file.name,
+        size: file.size,
+        type: file.type,
+        musicFileId: musicFile.id
+      });
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('music')
-        .getPublicUrl(fileName);
+      // Check if bucket exists first by attempting upload
+      console.log('🎵 Attempting music upload...');
+      await storage.saveMusicFile(musicFile, file);
+      console.log('✅ Music upload successful!');
 
-      // Update user's musicFiles in profile
-      const users = await storage.getUsers();
-      const currentUser = users.find(u => u.id === user.id);
-      
-      if (currentUser) {
-        const musicFiles = currentUser.musicFiles || [];
-        musicFiles.push({
-          name: file.name,
-          url: urlData.publicUrl
-        });
-
-        await storage.saveUser({
-          ...currentUser,
-          musicFiles
-        });
-
-        toast.dismiss();
-        toast.success(`Music uploaded: ${file.name}`);
-        
-        // Reload page to show new music
-        window.location.reload();
-      }
-    } catch (error) {
       toast.dismiss();
-      toast.error('Failed to upload music. Please try again.');
-
+      toast.success(`Music uploaded: ${file.name}`);
+      
+      // Reload page to show new music
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('❌ Music upload error:', error);
+      toast.dismiss();
+      
+      if (error instanceof Error) {
+        if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
+          toast.error('File too large for upload. Please try a smaller file.');
+        } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          toast.error('Upload unauthorized. Please log in again.');
+        } else if (error.message.includes('400')) {
+          toast.error('Invalid file format or upload data. Please try again.');
+        } else {
+          toast.error(`Upload failed: ${error.message}`);
+        }
+      } else {
+        toast.error('Failed to upload music. Please try again.');
+      }
     }
 
     // Reset input

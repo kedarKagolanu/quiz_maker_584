@@ -114,127 +114,179 @@ const MusicPlayer = React.memo<MusicPlayerProps>(({ isAdvanced = false }) => {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 bg-terminal border border-terminal-accent rounded-lg shadow-lg p-4 min-w-[320px] z-50">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Music className="w-5 h-5 text-terminal-accent" />
-          <span className="text-terminal-bright font-medium">Music Player</span>
+    <div className="fixed bottom-4 right-4 bg-gradient-to-br from-terminal to-terminal/95 border border-terminal-accent/50 rounded-xl shadow-2xl backdrop-blur-sm p-5 min-w-[380px] z-50">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-terminal-accent/20 rounded-lg">
+            <Music className="w-5 h-5 text-terminal-accent" />
+          </div>
+          <div>
+            <span className="text-terminal-bright font-semibold">Music Player</span>
+            {currentTrack && musicFiles.length > 1 && (
+              <div className="text-xs text-terminal-dim">
+                Track {musicFiles.findIndex(f => f.id === currentlyPlaying) + 1} of {musicFiles.length}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsMinimized(true)}
-            className="text-terminal-dim hover:text-terminal-bright"
+            className="text-terminal-dim hover:text-terminal-bright transition-all hover:bg-terminal-accent/10 p-1 rounded"
           >
             <Minimize2 className="w-4 h-4" />
           </button>
           <button
             onClick={() => setIsVisible(false)}
-            className="text-terminal-dim hover:text-terminal-bright"
+            className="text-terminal-dim hover:text-terminal-bright transition-all hover:bg-red-500/20 p-1 rounded"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      <div className="mb-3">
-        <div className="text-terminal-bright font-medium truncate">
+      {/* Track Info */}
+      <div className="mb-4 bg-terminal-accent/10 rounded-lg p-3">
+        <div className="text-terminal-bright font-medium truncate text-lg">
           {getTrackDisplayName(currentTrack)}
         </div>
-        <div className="text-terminal-dim text-sm">
-          {formatTime(currentTime)} / {formatTime(duration)}
+        <div className="flex items-center justify-between text-terminal-dim text-sm mt-1">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
         </div>
       </div>
 
-      <div className="mb-4">
+      {/* Enhanced Progress Bar */}
+      <div className="mb-6">
         <div 
-          className="w-full bg-terminal-dim rounded-full h-2 mb-2 cursor-pointer hover:h-3 transition-all"
+          className="w-full bg-terminal-dim/30 rounded-full h-3 cursor-pointer hover:h-4 transition-all shadow-inner relative group"
           onClick={handleSeek}
         >
           <div
-            className="bg-terminal-accent h-full rounded-full transition-all duration-300"
+            className="bg-gradient-to-r from-terminal-accent to-terminal-bright h-full rounded-full transition-all duration-300 shadow-sm"
             style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+          />
+          <div 
+            className="absolute top-1/2 w-4 h-4 bg-terminal-bright rounded-full shadow-lg transform -translate-y-1/2 transition-all opacity-0 group-hover:opacity-100"
+            style={{ 
+              left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+              transform: 'translate(-50%, -50%)'
+            }}
           />
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-3 mb-3">
-        {isAdvanced && (
-          <button
-            onClick={toggleShuffle}
-            className={`text-terminal-dim hover:text-terminal-bright ${isShuffleOn ? 'text-terminal-accent' : ''}`}
-          >
-            <Shuffle className="w-4 h-4" />
-          </button>
-        )}
-        
+      {/* Main Controls */}
+      <div className="flex items-center justify-center gap-4 mb-4">
         <button
           onClick={playPrevious}
-          className="text-terminal-dim hover:text-terminal-bright"
+          disabled={!currentTrack || musicFiles.length <= 1}
+          className="text-terminal-dim hover:text-terminal-bright disabled:opacity-30 disabled:cursor-not-allowed transition-all transform hover:scale-110 p-2 hover:bg-terminal-accent/10 rounded-lg"
+          title="Previous track"
         >
-          <SkipBack className="w-5 h-5" />
+          <SkipBack className="w-6 h-6" />
+        </button>
+
+        <button
+          onClick={() => skipSeconds(-10)}
+          disabled={!currentTrack}
+          className="text-terminal-dim hover:text-terminal-bright disabled:opacity-30 transition-all transform hover:scale-110 p-1"
+          title="Rewind 10s"
+        >
+          <SkipBack className="w-4 h-4" />
         </button>
         
         <button
           onClick={togglePlay}
-          className="bg-terminal-accent hover:bg-terminal-accent/80 text-terminal rounded-full p-2"
+          disabled={!currentTrack}
+          className="bg-gradient-to-r from-terminal-accent to-terminal-bright hover:from-terminal-bright hover:to-terminal-accent text-terminal rounded-full p-4 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 shadow-lg"
         >
-          {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+          {isPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-1" />}
+        </button>
+
+        <button
+          onClick={() => skipSeconds(10)}
+          disabled={!currentTrack}
+          className="text-terminal-dim hover:text-terminal-bright disabled:opacity-30 transition-all transform hover:scale-110 p-1"
+          title="Forward 10s"
+        >
+          <SkipForward className="w-4 h-4" />
         </button>
         
         <button
           onClick={playNext}
-          className="text-terminal-dim hover:text-terminal-bright"
+          disabled={!currentTrack || musicFiles.length <= 1}
+          className="text-terminal-dim hover:text-terminal-bright disabled:opacity-30 disabled:cursor-not-allowed transition-all transform hover:scale-110 p-2 hover:bg-terminal-accent/10 rounded-lg"
+          title="Next track"
         >
-          <SkipForward className="w-5 h-5" />
+          <SkipForward className="w-6 h-6" />
         </button>
-
-        {isAdvanced && (
-          <button
-            onClick={toggleRepeat}
-            className={`text-terminal-dim hover:text-terminal-bright ${repeatMode !== 'off' ? 'text-terminal-accent' : ''}`}
-          >
-            <Repeat className="w-4 h-4" />
-          </button>
-        )}
       </div>
 
-      {isAdvanced && (
+      {/* Secondary Controls */}
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => skipSeconds(-10)}
-            className="text-terminal-dim hover:text-terminal-bright text-sm"
+            onClick={toggleShuffle}
+            className={`transition-all transform hover:scale-110 p-2 rounded-lg ${
+              isShuffleOn 
+                ? 'text-terminal-accent bg-terminal-accent/20' 
+                : 'text-terminal-dim hover:text-terminal-bright hover:bg-terminal-accent/10'
+            }`}
+            title="Shuffle"
           >
-            -10s
+            <Shuffle className="w-4 h-4" />
           </button>
-          
+
           <button
-            onClick={() => skipSeconds(10)}
-            className="text-terminal-dim hover:text-terminal-bright text-sm"
+            onClick={toggleRepeat}
+            className={`transition-all transform hover:scale-110 p-2 rounded-lg relative ${
+              repeatMode !== 'off' 
+                ? 'text-terminal-accent bg-terminal-accent/20' 
+                : 'text-terminal-dim hover:text-terminal-bright hover:bg-terminal-accent/10'
+            }`}
+            title={`Repeat: ${repeatMode}`}
           >
-            +10s
+            <Repeat className="w-4 h-4" />
+            {repeatMode === 'one' && (
+              <span className="absolute -top-1 -right-1 text-xs bg-terminal-accent text-terminal rounded-full w-4 h-4 flex items-center justify-center">1</span>
+            )}
           </button>
         </div>
-      )}
 
-      <div className="flex items-center gap-3 mt-3">
+        <div className="text-xs text-terminal-dim">
+          {musicFiles.length > 0 && `${musicFiles.length} tracks available`}
+        </div>
+      </div>
+
+      {/* Volume Control */}
+      <div className="flex items-center gap-3 bg-terminal-accent/5 rounded-lg p-3">
         <button
           onClick={() => setIsMuted(!isMuted)}
-          className="text-terminal-dim hover:text-terminal-bright"
+          className="text-terminal-dim hover:text-terminal-bright transition-all transform hover:scale-110"
         >
-          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
         </button>
         
-        <div className="flex-1">
+        <div className="flex-1 relative">
           <input
             type="range"
             min="0"
             max="1"
-            step="0.1"
+            step="0.01"
             value={isMuted ? 0 : volume}
             onChange={(e) => setVolume(Number(e.target.value))}
-            className="w-full accent-terminal-accent"
+            className="w-full h-2 bg-terminal-dim/30 rounded-full appearance-none cursor-pointer slider"
+            style={{
+              background: `linear-gradient(to right, var(--terminal-accent) 0%, var(--terminal-accent) ${(isMuted ? 0 : volume) * 100}%, rgba(var(--terminal-dim), 0.3) ${(isMuted ? 0 : volume) * 100}%, rgba(var(--terminal-dim), 0.3) 100%)`
+            }}
           />
         </div>
+        
+        <span className="text-xs text-terminal-dim min-w-[3ch]">
+          {Math.round((isMuted ? 0 : volume) * 100)}%
+        </span>
       </div>
     </div>
   );

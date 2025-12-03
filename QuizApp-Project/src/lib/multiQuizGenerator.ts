@@ -218,12 +218,45 @@ async function generateMultiQuizQuestionsLegacy(
       // Merge media from source quiz BEFORE processing questions (avoid duplicates)
       if (sourceQuiz.media && sourceQuiz.media.length > 0) {
         sourceQuiz.media.forEach(mediaItem => {
-          const exists = mergedMedia.find(m => m.id === mediaItem.id);
+          // Ensure media item has a unique ID
+          if (!mediaItem.id) {
+            mediaItem.id = `${sourceQuiz.id}_media_${sourceQuiz.media!.indexOf(mediaItem)}_${Date.now()}`;
+          }
+          
+          // Check for existing media by ID, name, and data to avoid true duplicates
+          const exists = mergedMedia.find(m => 
+            (m.id === mediaItem.id) || 
+            (m.name === mediaItem.name && m.data === mediaItem.data && m.type === mediaItem.type)
+          );
+          
           if (!exists) {
-            mergedMedia.push(mediaItem);
+            // Validate media data before adding - be more strict
+            if (mediaItem.data && 
+                mediaItem.data.length > 50 && 
+                !mediaItem.data.startsWith('blob:') &&
+                (mediaItem.data.startsWith('data:') || mediaItem.data.length > 1000)) {
+              
+              // Ensure proper structure
+              const cleanMediaItem = {
+                ...mediaItem,
+                id: mediaItem.id || `${sourceQuiz.id}_media_${sourceQuiz.media!.indexOf(mediaItem)}_${Date.now()}`,
+                type: (mediaItem.type === 'img' || mediaItem.type === 'audio') ? mediaItem.type : 'img',
+                size: mediaItem.size || 'medium'
+              };
+              
+              mergedMedia.push(cleanMediaItem);
+              console.log(`✅ Added media to merged array: ${cleanMediaItem.name} (${cleanMediaItem.type})`);
+            } else {
+              console.warn(`🗑️ Skipping invalid media item: ${mediaItem.name}`, {
+                dataLength: mediaItem.data?.length,
+                isBlob: mediaItem.data?.startsWith('blob:'),
+                hasDataPrefix: mediaItem.data?.startsWith('data:')
+              });
+            }
+          } else {
+            console.log(`📎 Skipping duplicate media: ${mediaItem.name}`);
           }
         });
-
       }
 
       // Select questions (limited by actual available questions)
@@ -309,6 +342,12 @@ async function generateMultiQuizQuestionsLegacy(
           _sourceQuiz: sourceQuiz.id,
           _sourceTitle: sourceQuiz.title,
           _originalIndex: originalIndex >= 0 ? originalIndex : questionIndex, // Track TRUE original position in source quiz
+          // Add source metadata for question limit filtering
+          __source: {
+            isMultiQuiz: !!sourceQuiz.multiQuizSources,
+            quizId: sourceQuiz.id,
+            title: sourceQuiz.title
+          },
           // Copy all other properties
           ...q,
         };
@@ -354,28 +393,61 @@ async function generateMultiQuizQuestionsLegacy(
   }
 
   // Apply final question limit and ordering
+  // IMPORTANT: Question limit should only apply to normal (non-multi-quiz) sources
   let finalQuestions = mergedQuestions;
   const finalPreserveQuizOrder = quiz.multiQuizSources?.preserveQuizOrder || false;
   
   if (quiz.questionLimit && quiz.questionLimit < mergedQuestions.length) {
-    if (finalPreserveQuizOrder) {
-      // For preserved order: DO NOT redistribute questions across sections
-      // Instead, warn user and use all questions (respecting section boundaries)
-
-
-      finalQuestions = mergedQuestions; // Keep all questions to preserve section boundaries
-    } else {
-      // Fully random: use Fisher-Yates shuffle then trim
-      const shuffledQuestions = [...mergedQuestions];
-      for (let i = shuffledQuestions.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
+    // Separate questions from multi-quiz sources vs normal sources
+    const multiQuizQuestions: Question[] = [];
+    const normalQuizQuestions: Question[] = [];
+    
+    for (const question of mergedQuestions) {
+      const questionSourceMetadata = (question as any).__source;
+      if (questionSourceMetadata?.isMultiQuiz) {
+        multiQuizQuestions.push(question);
+      } else {
+        normalQuizQuestions.push(question);
       }
-      finalQuestions = shuffledQuestions.slice(0, quiz.questionLimit);
-
     }
+    
+    console.log(`📊 Question limit analysis:`, {
+      totalQuestions: mergedQuestions.length,
+      multiQuizQuestions: multiQuizQuestions.length,
+      normalQuizQuestions: normalQuizQuestions.length,
+      questionLimit: quiz.questionLimit,
+      shouldApplyLimitToNormalOnly: true
+    });
+    
+    // Apply question limit ONLY to normal quiz questions
+    let limitedNormalQuestions = normalQuizQuestions;
+    if (quiz.questionLimit < normalQuizQuestions.length) {
+      if (finalPreserveQuizOrder) {
+        // For preserved order: keep proportional representation but only from normal sources
+        limitedNormalQuestions = applyLimitWithQuizOrder(normalQuizQuestions, quiz.questionLimit);
+        console.log(`🎯 Applied question limit to normal sources with preserved order: ${limitedNormalQuestions.length} questions`);
+      } else {
+        // Fully random: shuffle and trim normal questions only
+        const shuffledNormalQuestions = [...normalQuizQuestions];
+        for (let i = shuffledNormalQuestions.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffledNormalQuestions[i], shuffledNormalQuestions[j]] = [shuffledNormalQuestions[j], shuffledNormalQuestions[i]];
+        }
+        limitedNormalQuestions = shuffledNormalQuestions.slice(0, quiz.questionLimit);
+        console.log(`🎯 Applied question limit to normal sources with randomization: ${limitedNormalQuestions.length} questions`);
+      }
+    }
+    
+    // Combine limited normal questions with ALL multi-quiz questions (unlimited)
+    finalQuestions = [...multiQuizQuestions, ...limitedNormalQuestions];
     metadata.finalLimit = quiz.questionLimit;
-
+    metadata.appliedToNormalSourcesOnly = true;
+    
+    console.log(`✅ Final question distribution:`, {
+      multiQuizQuestions: multiQuizQuestions.length,
+      limitedNormalQuestions: limitedNormalQuestions.length,
+      totalFinalQuestions: finalQuestions.length
+    });
   }
 
   // Handle randomization based on quiz settings

@@ -11,7 +11,9 @@ interface MusicFile {
   uploadedAt: number;
   duration?: number;
   fileSize: number;
-  url: string;
+  url?: string;
+  filePath?: string;
+  file_path?: string;
 }
 
 interface MusicContextType {
@@ -110,8 +112,11 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
       audioElement.currentTime = 0;
     }
 
+    // Use the URL/filePath that's available (keep it simple like before)
+    const audioUrl = (musicFile as any).filePath || (musicFile as any).url;
+
     // Create new audio element
-    const audio = new Audio(musicFile.url);
+    const audio = new Audio(audioUrl);
     audio.volume = isMuted ? 0 : volume;
     audio.muted = isMuted;
     

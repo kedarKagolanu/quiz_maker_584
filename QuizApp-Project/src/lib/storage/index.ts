@@ -1,6 +1,8 @@
 import { StorageService } from "./StorageService";
 import { LocalStorageDriver } from "./LocalStorageDriver";
 import { SupabaseDriver } from "./SupabaseDriver";
+import { BatchedSupabaseDriver } from './BatchedSupabaseDriver';
+import { CachedStorageDriver } from "../cache/CachedStorageDriver";
 
 /**
  * Storage Module - Driver-based storage abstraction
@@ -30,14 +32,10 @@ function createDriver() {
   
   if (supabaseUrl && supabaseAnonKey) {
     // Only log in development mode for security
-    if (import.meta.env.DEV) {
-
-    }
-    driverInstance = new SupabaseDriver(supabaseUrl, supabaseAnonKey);
+    // Connecting to fresh Supabase project with batching enabled
+    driverInstance = new BatchedSupabaseDriver(supabaseUrl, supabaseAnonKey);
   } else {
-    if (import.meta.env.DEV) {
-
-    }
+    // Supabase credentials not found, using LocalStorage
     driverInstance = new LocalStorageDriver();
   }
   
@@ -46,7 +44,9 @@ function createDriver() {
 
 const driver = createDriver();
 
-export const storage = new StorageService(driver);
+// Create StorageService wrapper first, then cache it
+const storageService = new StorageService(driver);
+export const storage = new CachedStorageDriver(storageService);
 
 // Export types and classes for advanced usage
 export { StorageService } from "./StorageService";

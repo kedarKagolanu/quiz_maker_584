@@ -6,10 +6,11 @@ export interface QuizQuestion {
 }
 
 export interface MediaItem {
-  type: 'image' | 'audio';
-  data: string; // base64 data
+  type: 'img' | 'audio'; // Use 'img' to match media tag format [img:1]
+  data: string; // base64 data with data: prefix
   name: string;
   size?: 'small' | 'medium' | 'large' | 'xlarge'; // individual image size
+  id?: string; // unique identifier for media merging
 }
 
 export type ResourceRole = 'creator' | 'admin' | 'editor' | 'viewer';

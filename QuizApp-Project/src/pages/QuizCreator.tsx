@@ -15,13 +15,22 @@ import { useMultiQuizManager } from "@/hooks/useMultiQuizManager";
 import { MediaUploader, type MediaItem } from "@/components/quiz-creator/MediaUploader";
 import { QuizSettings } from "@/components/quiz-creator/QuizSettings";
 import { QuizSourceManager } from "@/components/quiz-creator/QuizSourceManager";
+import { RawJsonEditor } from "@/components/RawJsonEditor";
 import { ValidationErrorDisplay, ValidationErrors } from "@/components/ValidationErrorDisplay";
+import { LoadingButton } from '@/components/ui/loading-spinner';
+import { AIQuizGenerator } from '@/components/AIQuizGenerator';
 
 export const QuizCreator: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editQuizId = searchParams.get("edit");
+  const folderParam = searchParams.get("folder");
+  
+  // Debug the URL and parameters immediately
+  console.log('🔍 QuizCreator mounted with URL:', window.location.href);
+  console.log('🔍 searchParams object:', searchParams);
+  console.log('🔍 All URL parameters:', Object.fromEntries(searchParams.entries()));
   
   // Use extracted hooks
   const { state: quizState, actions: quizActions } = useQuizCreator();
@@ -33,6 +42,8 @@ export const QuizCreator: React.FC = () => {
   const [folders, setFolders] = useState<QuizFolder[]>([]);
   const [availableQuizzes, setAvailableQuizzes] = useState<Quiz[]>([]);
   const [folderHistory, setFolderHistory] = useState<string[]>(['']);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   
   // Preview and image size controls
@@ -61,12 +72,32 @@ export const QuizCreator: React.FC = () => {
         setAvailableQuizzes(accessibleQuizzes);
         setFolders(accessibleFolders);
         
-        // Initialize with root folder
+        // Initialize with folder from URL parameter or root folder
         multiQuizActions.setCurrentFolder('');
       };
       loadFoldersAndQuizzes();
     }
   }, [user]);
+
+  // Separate effect for setting folder path from URL parameter - run immediately when folderParam is available
+  useEffect(() => {
+    if (folderParam && !editQuizId) {
+      const decodedFolder = decodeURIComponent(folderParam);
+      console.log('✅ Setting quiz folder path to:', decodedFolder);
+      quizActions.setFolderPath(decodedFolder);
+    }
+  }, [folderParam, editQuizId, quizActions]);
+
+  // Debug effect to verify folder path is set
+  useEffect(() => {
+    if (folderParam && quizState.folderPath) {
+      console.log('✅ Folder path successfully set:', {
+        urlParam: folderParam,
+        decodedParam: decodeURIComponent(folderParam),
+        currentFolderPath: quizState.folderPath
+      });
+    }
+  }, [folderParam, quizState.folderPath]);
 
   useEffect(() => {
     if (editQuizId) {
@@ -115,24 +146,30 @@ export const QuizCreator: React.FC = () => {
   }, [editQuizId, user]);
 
   const handleCreate = async () => {
+    setIsCreating(true);
+    setCreateError(null); // Clear previous errors
 
     if (!user) {
       navigate("/");
+      setIsCreating(false);
       return;
     }
 
     if (!quizState.jsonInput && !multiQuizState.multiQuizMode) {
       toast.error("Please provide quiz questions JSON or enable Multi-Quiz Mode");
+      setIsCreating(false);
       return;
     }
 
     if (multiQuizState.multiQuizMode && multiQuizState.quizSources.length === 0) {
       toast.error("Multi-Quiz Mode: Please add at least one quiz source");
+      setIsCreating(false);
       return;
     }
 
     if (!multiQuizState.multiQuizMode && !quizState.jsonInput) {
       toast.error("Please provide quiz questions JSON");
+      setIsCreating(false);
       return;
     }
 
@@ -140,6 +177,7 @@ export const QuizCreator: React.FC = () => {
     const titleValidation = validateInput(quizTitleSchema, quizState.title);
     if (titleValidation.success === false) {
       toast.error(titleValidation.error);
+      setIsCreating(false);
       return;
     }
     const validatedTitle = titleValidation.data;
@@ -201,6 +239,7 @@ export const QuizCreator: React.FC = () => {
             whiteSpace: 'pre-line'
           }
         });
+        setIsCreating(false);
         return;
       }
 
@@ -217,6 +256,7 @@ export const QuizCreator: React.FC = () => {
         const error = ValidationErrors.questionLimit(quizState.customQuestionLimit, totalMinQuestions);
         quizActions.setValidationErrors([error]);
         toast.error(`❌ Question limit (${quizState.customQuestionLimit}) is less than minimum required questions (${totalMinQuestions}) from your sources`);
+        setIsCreating(false);
         return;
       }
       
@@ -236,12 +276,14 @@ export const QuizCreator: React.FC = () => {
           const error = ValidationErrors.questionLimit(quizState.customQuestionLimit, questions.length);
           quizActions.setValidationErrors([error]);
           toast.error(`❌ Question limit (${quizState.customQuestionLimit}) cannot be greater than total questions (${questions.length})`);
+          setIsCreating(false);
           return;
         }
       } catch (e) {
         const error = ValidationErrors.jsonParse(e instanceof Error ? e.message : 'Invalid JSON syntax');
         quizActions.setValidationErrors([error]);
         toast.error("❌ JSON syntax error - check your JSON format");
+        setIsCreating(false);
         return;
       }
     }
@@ -263,6 +305,7 @@ export const QuizCreator: React.FC = () => {
         // Validate that we have at least one source
         if (multiQuizState.quizSources.length === 0) {
           toast.error("Multi-Quiz Mode: Please add at least one quiz source");
+          setIsCreating(false);
           return;
         }
         
@@ -291,6 +334,7 @@ export const QuizCreator: React.FC = () => {
           } catch (e) {
 
             toast.error("Invalid JSON format for additional questions");
+            setIsCreating(false);
             return;
           }
         }
@@ -302,6 +346,7 @@ export const QuizCreator: React.FC = () => {
         // Parse JSON for single quiz mode
         if (!quizState.jsonInput || !quizState.jsonInput.trim()) {
           toast.error("Please provide quiz questions JSON");
+          setIsCreating(false);
           return;
         }
         questions = JSON.parse(quizState.jsonInput);
@@ -339,6 +384,7 @@ export const QuizCreator: React.FC = () => {
 
           quizActions.setJsonError(`❌ ${validation.error}`);
           toast.error(validation.error);
+          setIsCreating(false);
           return;
         }
         validatedQuestions = validation.data;
@@ -381,6 +427,7 @@ export const QuizCreator: React.FC = () => {
               preserveQuizOrder: multiQuizState.preserveQuizOrder
             } : undefined,
           };
+          console.log('Updating quiz with media size:', JSON.stringify(updatedQuiz.media).length, 'bytes');
           await storage.updateQuiz(updatedQuiz);
           toast.success("Quiz updated successfully!");
           navigate("/my-quizzes");
@@ -420,6 +467,7 @@ export const QuizCreator: React.FC = () => {
         
 
         
+        console.log('Saving quiz with media size:', JSON.stringify(quiz.media).length, 'bytes');
         await storage.saveQuiz(quiz);
 
         
@@ -446,25 +494,37 @@ export const QuizCreator: React.FC = () => {
         navigate("/dashboard");
       }
     } catch (error: any) {
-      handleError(error, { 
-        userMessage: "Failed to create quiz. Please check your JSON format.",
-        logToConsole: true 
-      });
+      console.error('Error creating/updating quiz:', error);
       
       const errorMsg = error.message || "Unknown error";
-      const match = errorMsg.match(/position (\\d+)/);
-      if (match) {
-        const pos = parseInt(match[1]);
-        const lines = quizState.jsonInput.substring(0, pos).split('\\n');
-        const line = lines.length;
-        const column = lines[lines.length - 1].length + 1;
-        quizActions.setErrorLine(line);
-        quizActions.setErrorColumn(column);
-        quizActions.setJsonError(`❌ JSON Syntax Error at line ${line}, column ${column}: ${errorMsg}`);
+      setCreateError(errorMsg);
+      
+      // Check if it's a JSON parsing error first
+      if (errorMsg.includes('JSON') || errorMsg.includes('position')) {
+        handleError(error, { 
+          userMessage: "Failed to create quiz. Please check your JSON format.",
+          logToConsole: true 
+        });
+        
+        const match = errorMsg.match(/position (\\d+)/);
+        if (match) {
+          const pos = parseInt(match[1]);
+          const lines = quizState.jsonInput.substring(0, pos).split('\\n');
+          const line = lines.length;
+          const column = lines[lines.length - 1].length + 1;
+          quizActions.setErrorLine(line);
+          quizActions.setErrorColumn(column);
+          quizActions.setJsonError(`❌ JSON Syntax Error at line ${line}, column ${column}: ${errorMsg}`);
+        } else {
+          quizActions.setJsonError(`❌ JSON Syntax Error: ${errorMsg}`);
+        }
+        toast.error("Invalid JSON format. Check the error message below.");
       } else {
-        quizActions.setJsonError(`❌ JSON Syntax Error: ${errorMsg}`);
+        // Database/network error
+        toast.error(errorMsg);
       }
-      toast.error("Invalid JSON format. Check the error message below.");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -536,6 +596,24 @@ export const QuizCreator: React.FC = () => {
             className="my-4"
           />
         )}
+
+        {/* Create/Update Error Display */}
+        {createError && (
+          <div className="my-4 p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
+            <div className="text-red-300 font-bold mb-2 flex items-center gap-2">
+              🚫 <span>Quiz {editQuizId ? 'Update' : 'Creation'} Failed</span>
+            </div>
+            <div className="text-red-200 text-sm font-mono whitespace-pre-wrap">
+              {createError}
+            </div>
+            {createError.includes('media data') && (
+              <div className="text-yellow-300 text-xs mt-3 p-2 bg-yellow-500/10 border border-yellow-400/30 rounded">
+                💡 <strong>Tip:</strong> Try reducing image file sizes or removing some media files. Large media can cause timeouts.
+              </div>
+            )}
+          </div>
+        )}
+
 
         <div>
           <div className="mb-4 flex items-center gap-4">
@@ -623,11 +701,47 @@ export const QuizCreator: React.FC = () => {
                 multiple
                 onChange={(e) => {
                   if (e.target.files) {
-                    handleMediaUpload(Array.from(e.target.files).map(file => ({
-                      name: file.name,
-                      type: 'image' as const,
-                      data: URL.createObjectURL(file)
-                    })));
+                    Array.from(e.target.files).forEach(file => {
+                      console.log('Processing image file:', file.name);
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const result = event.target?.result as string;
+                        if (result && result.startsWith('data:')) {
+                          // Generate unique ID for media item
+                          const mediaId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${file.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                          
+                          const newMedia: MediaItem = {
+                            name: file.name,
+                            type: 'img',
+                            data: result,
+                            size: 'medium',
+                            id: mediaId
+                          };
+                          
+                          // Validate image before adding
+                          const testImg = new Image();
+                          testImg.onload = () => {
+                            setUploadedMedia(prev => [...prev, newMedia]);
+                            toast.success(`Image "${file.name}" uploaded successfully!`);
+                          };
+                          testImg.onerror = () => {
+                            console.error('Image validation failed for:', file.name);
+                            toast.error(`Failed to validate image ${file.name}`);
+                          };
+                          testImg.src = result;
+                        } else {
+                          console.error('Invalid file data for image:', file.name);
+                          toast.error(`Failed to process ${file.name} - invalid data format`);
+                        }
+                      };
+                      reader.onerror = () => {
+                        console.error('FileReader error for image:', file.name);
+                        toast.error(`Failed to read ${file.name}`);
+                      };
+                      reader.readAsDataURL(file);
+                    });
+                    // Clear the input
+                    e.target.value = '';
                   }
                 }}
                 className="text-terminal-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-terminal-accent file:text-terminal cursor-pointer"
@@ -640,11 +754,38 @@ export const QuizCreator: React.FC = () => {
                 multiple
                 onChange={(e) => {
                   if (e.target.files) {
-                    handleMediaUpload(Array.from(e.target.files).map(file => ({
-                      name: file.name,
-                      type: 'audio' as const,
-                      data: URL.createObjectURL(file)
-                    })));
+                    Array.from(e.target.files).forEach(file => {
+                      console.log('Processing audio file:', file.name);
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const result = event.target?.result as string;
+                        if (result && result.startsWith('data:')) {
+                          // Generate unique ID for media item
+                          const mediaId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${file.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                          
+                          const newMedia: MediaItem = {
+                            name: file.name,
+                            type: 'audio',
+                            data: result,
+                            size: 'medium',
+                            id: mediaId
+                          };
+                          
+                          setUploadedMedia(prev => [...prev, newMedia]);
+                          toast.success(`Audio "${file.name}" uploaded successfully!`);
+                        } else {
+                          console.error('Invalid file data for audio:', file.name);
+                          toast.error(`Failed to process ${file.name} - invalid data format`);
+                        }
+                      };
+                      reader.onerror = () => {
+                        console.error('FileReader error for audio:', file.name);
+                        toast.error(`Failed to read ${file.name}`);
+                      };
+                      reader.readAsDataURL(file);
+                    });
+                    // Clear the input
+                    e.target.value = '';
                   }
                 }}
                 className="text-terminal-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-terminal-accent file:text-terminal cursor-pointer"
@@ -657,7 +798,7 @@ export const QuizCreator: React.FC = () => {
               {uploadedMedia.map((media, idx) => (
                 <div key={idx} className="border border-terminal-accent/30 p-4 rounded-lg bg-terminal-accent/5">
                   <div className="flex items-start gap-4">
-                    {media.type === 'image' ? (
+                    {media.type === 'img' ? (
                       <div className="flex flex-col items-center gap-2">
                         <img 
                           src={media.data} 
@@ -685,12 +826,12 @@ export const QuizCreator: React.FC = () => {
                     <div className="flex-1 space-y-3">
                       <div>
                         <p className="text-sm font-bold text-terminal-bright">
-                          {media.type === 'image' ? '🖼️' : '🔊'} {media.type.toUpperCase()} #{idx + 1}
+                          {media.type === 'img' ? '🖼️' : '🔊'} {media.type === 'img' ? 'IMAGE' : 'AUDIO'} #{idx + 1}
                         </p>
                         <p className="text-xs text-terminal-dim truncate">{media.name}</p>
                       </div>
                       
-                      {media.type === 'image' && (
+                      {media.type === 'img' && (
                         <div className="space-y-2">
                           <div className="text-xs font-medium text-terminal-bright">Size in Quiz:</div>
                           <select
@@ -713,13 +854,13 @@ export const QuizCreator: React.FC = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => {
-                            const ref = `[${media.type === 'image' ? 'img' : 'audio'}:${idx + 1}]`;
+                            const ref = `[${media.type}:${idx + 1}]`;
                             navigator.clipboard.writeText(ref);
                             toast.success(`Copied ${ref} to clipboard!`);
                           }}
                           className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 px-3 py-1 rounded text-xs font-medium border border-blue-500/30"
                         >
-                          📋 Copy [{media.type === 'image' ? 'img' : 'audio'}:{idx + 1}]
+                          📋 Copy [{media.type}:{idx + 1}]
                         </button>
                         <button
                           onClick={() => handleMediaDelete(idx)}
@@ -1082,7 +1223,15 @@ export const QuizCreator: React.FC = () => {
         </div>
 
         <div className="flex gap-3 mt-6">
-          <TerminalButton onClick={handleCreate}>{editQuizId ? "update quiz" : "create quiz"}</TerminalButton>
+          <LoadingButton
+            isLoading={isCreating}
+            onClick={handleCreate}
+            disabled={isCreating}
+            className="bg-terminal-accent hover:bg-terminal-accent-hover text-terminal font-bold py-2 px-4 rounded transition-colors duration-200 border border-terminal-accent"
+            loadingText={editQuizId ? "Updating Quiz..." : "Creating Quiz..."}
+          >
+            {editQuizId ? "Update Quiz" : "Create Quiz"}
+          </LoadingButton>
           <TerminalButton onClick={() => navigate(editQuizId ? `/quiz/${editQuizId}/advanced?mode=edit` : `/advanced?mode=create`)}>
             🔧 advanced settings
           </TerminalButton>
@@ -1121,6 +1270,39 @@ export const QuizCreator: React.FC = () => {
             <div>• <span className="text-terminal-accent">Quiz timer</span>: Set "Quiz time limit" → timed exam with revisits allowed</div>
             <div>• <span className="text-terminal-accent">No timer</span>: Leave both empty → unlimited time with revisits allowed</div>
             <div>• <span className="text-terminal-accent">Question timer</span>: Set "Per-question time limit" → same time for each question, no revisits</div>
+          </div>
+          <div className="ml-6 text-sm space-y-1 text-terminal-dim mt-3">
+            <div className="text-terminal-bright">Special Characters & Formatting:</div>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div>
+                <div className="text-terminal-accent font-semibold">Text Formatting:</div>
+                <div>• <span className="text-terminal-accent">**bold**</span> or <span className="text-terminal-accent">__bold__</span> → <strong>bold</strong></div>
+                <div>• <span className="text-terminal-accent">*italic*</span> or <span className="text-terminal-accent">_italic_</span> → <em>italic</em></div>
+                <div>• <span className="text-terminal-accent">***bold+italic***</span> → <strong><em>bold+italic</em></strong></div>
+                <div>• <span className="text-terminal-accent">`code`</span> → <code style={{ background: 'rgba(0,0,0,0.2)', padding: '1px 3px', borderRadius: '2px' }}>code</code></div>
+              </div>
+              <div>
+                <div className="text-terminal-accent font-semibold">Escape Sequences:</div>
+                <div>• <span className="text-terminal-accent">\\n</span> → Line break</div>
+                <div>• <span className="text-terminal-accent">\\t</span> → Tab (4 spaces)</div>
+                <div>• <span className="text-terminal-accent">\\\\n</span> → Literal "\\n" text</div>
+                <div>• <span className="text-terminal-accent">\\\\*</span> → Literal "\\*" text</div>
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="text-terminal-accent font-semibold">Greek Letters & Symbols:</div>
+              <div>• <span className="text-terminal-accent">\\alpha \\beta \\pi \\sigma</span> → α β π σ</div>
+              <div>• <span className="text-terminal-accent">\\rightarrow \\leftarrow \\infinity</span> → → ← ∞</div>
+              <div>• <span className="text-terminal-accent">\\degree \\plusminus \\multiply \\divide</span> → ° ± × ÷</div>
+            </div>
+            <div className="text-yellow-400 mt-3 p-2 bg-yellow-400/10 rounded">
+              <div className="font-semibold">JSON Example:</div>
+              <div className="font-mono text-xs mt-1">{`{"q":"Line 1\\nLine 2\\n**Bold** and ***bold+italic***\\nTo show literal \\\\n use double backslash","o":["Option A","Option B"],"a":0}`}</div>
+            </div>
+            <div className="text-green-400 mt-2 p-2 bg-green-400/10 rounded">
+              <div className="font-semibold">This renders as:</div>
+              <div>Line 1<br />Line 2<br /><strong>Bold</strong> and <strong><em>bold+italic</em></strong><br />To show literal \\n use double backslash</div>
+            </div>
           </div>
         </div>
         </div>

@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { MusicPlayer } from "@/components/MusicPlayer";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { MusicProvider } from "./contexts/MusicContext";
+import { CacheProvider } from "./contexts/CacheContext";
 import { Suspense, lazy } from "react";
 
 // Critical pages - keep synchronous
@@ -28,6 +29,7 @@ const UnifiedQuizAdvanced = lazy(() => import("./pages/UnifiedQuizAdvanced"));
 const QuizBrowser = lazy(() => import("./pages/QuizBrowser").then(m => ({ default: m.QuizBrowser })));
 const MusicLibrary = lazy(() => import("./pages/MusicLibrary").then(m => ({ default: m.MusicLibrary })));
 const Profile = lazy(() => import("./pages/Profile").then(m => ({ default: m.Profile })));
+const AIQuizGenerator = lazy(() => import("./pages/AIQuizGenerator").then(m => ({ default: m.AIQuizGeneratorPage })));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -48,8 +50,9 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const App = () => (
   <ThemeProvider>
     <MusicProvider>
-      <AuthProvider>
-        <TooltipProvider>
+      <CacheProvider>
+        <AuthProvider>
+          <TooltipProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter>
@@ -63,6 +66,7 @@ const App = () => (
                 <Route path="/my-quizzes" element={<ProtectedRoute><MyQuizzesExplorer /></ProtectedRoute>} />
                 <Route path="/quiz-permissions/:quizId" element={<ProtectedRoute><QuizPermissions /></ProtectedRoute>} />
                 <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+                <Route path="/ai-generator" element={<ProtectedRoute><AIQuizGenerator /></ProtectedRoute>} />
                 <Route path="/browse-quizzes" element={<ProtectedRoute><QuizBrowser /></ProtectedRoute>} />
                 <Route path="/music-library" element={<ProtectedRoute><MusicLibrary /></ProtectedRoute>} />
                 <Route path="/quiz/:id/customize" element={<ProtectedRoute><QuizCustomizer /></ProtectedRoute>} />
@@ -82,6 +86,7 @@ const App = () => (
           <MusicPlayer isAdvanced={true} />
         </TooltipProvider>
       </AuthProvider>
+    </CacheProvider>
     </MusicProvider>
   </ThemeProvider>
 );

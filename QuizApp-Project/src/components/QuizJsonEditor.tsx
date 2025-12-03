@@ -19,7 +19,26 @@ export const QuizJsonEditor: React.FC<QuizJsonEditorProps> = ({ value, onChange,
   useEffect(() => {
     if (viewMode === "readable") {
       try {
-        const parsed = JSON.parse(value || "[]");
+        // Process the JSON to handle escaped characters properly
+        let processedValue = value || "[]";
+        
+        // Only process if it's not already valid JSON
+        try {
+          JSON.parse(processedValue);
+        } catch (e) {
+          // If JSON parsing fails, try to fix common escape sequence issues
+          processedValue = processedValue
+            // Fix double-escaped newlines in JSON strings
+            .replace(/"([^"]*?)\\\\n([^"]*?)"/g, (match, before, after) => {
+              return `"${before}\\n${after}"`;
+            })
+            // Fix double-escaped tabs
+            .replace(/"([^"]*?)\\\\t([^"]*?)"/g, (match, before, after) => {
+              return `"${before}\\t${after}"`;
+            });
+        }
+        
+        const parsed = JSON.parse(processedValue);
         setQuestions(Array.isArray(parsed) ? parsed : []);
       } catch (error) {
         setQuestions([]);

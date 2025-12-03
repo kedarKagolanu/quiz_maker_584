@@ -40,7 +40,7 @@ export const quizTitleSchema = z
 export const quizDescSchema = z
   .string()
   .trim()
-  .max(1000, "Quiz description must be at most 1000 characters")
+  .max(5000, "Quiz description must be at most 5000 characters")
   .optional();
 
 // Folder name validation
@@ -56,7 +56,7 @@ export const questionTextSchema = z
   .string()
   .trim()
   .min(1, "Question text cannot be empty")
-  .max(1000, "Question text must be at most 1000 characters");
+  .max(3000, "Question text must be at most 3000 characters");
 
 // Answer text validation
 export const answerTextSchema = z

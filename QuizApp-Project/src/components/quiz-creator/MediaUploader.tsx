@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 export interface MediaItem {
-  type: 'image' | 'audio';
+  type: 'img' | 'audio'; // Use consistent 'img' type only
   name: string;
-  data: string;
+  data: string; // base64 data with data: prefix
   size?: 'small' | 'medium' | 'large' | 'xlarge';
+  id?: string; // unique identifier for media merging
 }
 
 interface MediaUploaderProps {
@@ -21,28 +23,113 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
   onMediaDelete,
   onMediaSizeChange,
 }) => {
-  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'audio') => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadingFileName, setUploadingFileName] = useState<string>('');
+  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'img' | 'audio') => {
     const files = e.target.files;
     if (!files) return;
 
-    Array.from(files).forEach(file => {
+    console.log(`Starting upload for ${files.length} ${type} file(s)`);
+    setIsUploading(true);
+
+    let completedFiles = 0;
+    const totalFiles = files.length;
+
+    Array.from(files).forEach((file, index) => {
+      setUploadingFileName(file.name);
+      console.log(`Processing file ${index + 1}:`, { 
+        name: file.name, 
+        size: file.size, 
+        type: file.type,
+        targetType: type
+      });
+
       const reader = new FileReader();
       reader.onload = (event) => {
         const result = event.target?.result as string;
+        
+        // Validate the file data
+        if (!result || !result.startsWith('data:')) {
+          console.error('Invalid file data for:', file.name, 'Result:', result?.substring(0, 50));
+          toast.error(`Failed to process ${file.name} - invalid data format`);
+          return;
+        }
+
+        // Generate unique ID for this media item
+        const mediaId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${file.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
         const newMedia: MediaItem = { 
-          type, 
+          type: type === 'img' ? 'img' : 'audio', // Ensure consistent type naming
           name: file.name, 
-          data: result, 
-          size: 'medium' 
+          data: result, // Already includes data: prefix from readAsDataURL
+          size: 'medium',
+          id: mediaId
         };
-        onMediaUpload([...uploadedMedia, newMedia]);
+
+        console.log('✅ Media item created:', {
+          id: newMedia.id,
+          type: newMedia.type,
+          name: newMedia.name,
+          dataStart: newMedia.data.substring(0, 50),
+          dataLength: newMedia.data.length,
+          hasDataPrefix: newMedia.data.startsWith('data:')
+        });
+
+        // Validate that we can actually use this data
+        if (type === 'img') {
+          const testImg = new Image();
+          testImg.onload = () => {
+            console.log('✅ Image validation successful for:', file.name);
+            onMediaUpload([...uploadedMedia, newMedia]);
+            toast.success(`Image "${file.name}" uploaded successfully!`);
+            
+            completedFiles++;
+            if (completedFiles === totalFiles) {
+              setIsUploading(false);
+              setUploadingFileName('');
+            }
+          };
+          testImg.onerror = () => {
+            console.error('❌ Image validation failed for:', file.name);
+            toast.error(`Failed to validate image ${file.name}`);
+            
+            completedFiles++;
+            if (completedFiles === totalFiles) {
+              setIsUploading(false);
+              setUploadingFileName('');
+            }
+          };
+          testImg.src = newMedia.data;
+        } else {
+          // For audio, we can't easily validate without playing, so just add it
+          onMediaUpload([...uploadedMedia, newMedia]);
+          toast.success(`Audio "${file.name}" uploaded successfully!`);
+          
+          completedFiles++;
+          if (completedFiles === totalFiles) {
+            setIsUploading(false);
+            setUploadingFileName('');
+          }
+        }
       };
+
+      reader.onerror = () => {
+        console.error('FileReader error for:', file.name);
+        toast.error(`Failed to read ${file.name}`);
+        
+        completedFiles++;
+        if (completedFiles === totalFiles) {
+          setIsUploading(false);
+          setUploadingFileName('');
+        }
+      };
+
       reader.readAsDataURL(file);
     });
   };
 
-  const copyMediaReference = (index: number, type: 'image' | 'audio') => {
-    const tag = type === 'image' ? `[img:${index + 1}]` : `[audio:${index + 1}]`;
+  const copyMediaReference = (index: number, type: 'img' | 'audio') => {
+    const tag = type === 'img' ? `[img:${index + 1}]` : `[audio:${index + 1}]`;
     navigator.clipboard.writeText(tag);
     toast.success(`Copied ${tag}! Paste it anywhere in your questions or options.`);
   };
@@ -55,14 +142,29 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
   return (
     <div>
       <div className="text-terminal-foreground mb-3">upload media (images & audio):</div>
+      
+      {/* Upload progress indicator */}
+      {isUploading && (
+        <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/50 rounded-lg">
+          <div className="flex items-center gap-3">
+            <LoadingSpinner size="sm" className="text-blue-400" />
+            <div>
+              <div className="text-blue-300 font-medium">Uploading media files...</div>
+              <div className="text-blue-400/70 text-sm">Processing: {uploadingFileName}</div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="flex gap-3 mt-2">
         <div>
           <input
             type="file"
             accept="image/*"
             multiple
-            onChange={(e) => handleMediaUpload(e, 'image')}
-            className="text-terminal-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-terminal-accent file:text-terminal cursor-pointer"
+            disabled={isUploading}
+            onChange={(e) => handleMediaUpload(e, 'img')}
+            className="text-terminal-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-terminal-accent file:text-terminal cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
         <div>
@@ -70,8 +172,9 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
             type="file"
             accept="audio/*"
             multiple
+            disabled={isUploading}
             onChange={(e) => handleMediaUpload(e, 'audio')}
-            className="text-terminal-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-terminal-accent file:text-terminal cursor-pointer"
+            className="text-terminal-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-terminal-accent file:text-terminal cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
       </div>
@@ -82,7 +185,7 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
           {uploadedMedia.map((media, idx) => (
             <div key={idx} className="border border-terminal-accent/30 p-4 rounded-lg bg-terminal-accent/5">
               <div className="flex items-start gap-4">
-                {media.type === 'image' ? (
+                {media.type === 'img' ? (
                   <div className="flex flex-col items-center gap-2">
                     <img 
                       src={media.data} 
@@ -110,12 +213,12 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
                 <div className="flex-1 space-y-3">
                   <div>
                     <p className="text-sm font-bold text-terminal-bright">
-                      {media.type === 'image' ? '🖼️' : '🔊'} {media.type.toUpperCase()} #{idx + 1}
+                      {media.type === 'img' ? '🖼️' : '🔊'} {media.type === 'img' ? 'IMAGE' : 'AUDIO'} #{idx + 1}
                     </p>
                     <p className="text-xs text-terminal-dim truncate">{media.name}</p>
                   </div>
                   
-                  {media.type === 'image' && (
+                  {media.type === 'img' && (
                     <div className="space-y-2">
                       <div className="text-xs font-medium text-terminal-bright">Size in Quiz:</div>
                       <select
@@ -136,7 +239,7 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
                       onClick={() => copyMediaReference(idx, media.type)}
                       className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 px-3 py-1 rounded text-xs font-medium border border-blue-500/30"
                     >
-                      📋 Copy [{media.type === 'image' ? 'img' : 'audio'}:{idx + 1}]
+                      📋 Copy [{media.type}:{idx + 1}]
                     </button>
                     <button
                       onClick={() => deleteMedia(idx)}

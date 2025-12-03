@@ -29,9 +29,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!supabase) return;
 
-    // Set up auth state listener FIRST
+    // Setting up auth with fresh Supabase project
+
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // Auth state changed
         setSession(session);
         if (session?.user) {
           const newUser: User = {
@@ -42,10 +45,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           setUser(newUser);
           
-          // Check admin status with setTimeout to prevent deadlock
+          // Check admin status (simplified for fresh project)
           setTimeout(() => {
-            checkAdminStatus(session.user.id);
-          }, 0);
+            checkAdminStatus(session.user.id).catch(() => {
+              setIsAdmin(false);
+            });
+          }, 100);
         } else {
           setUser(null);
           setIsAdmin(false);
@@ -53,46 +58,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        const newUser: User = {
-          id: session.user.id,
-          username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'User',
-          password: '',
-          createdAt: new Date(session.user.created_at).getTime(),
-        };
-        setUser(newUser);
-        
-        setTimeout(() => {
-          checkAdminStatus(session.user.id);
-        }, 0);
-      }
-    });
+    // Check for existing session
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        // Existing session check
+        setSession(session);
+        if (session?.user) {
+          const newUser: User = {
+            id: session.user.id,
+            username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'User',
+            password: '',
+            createdAt: new Date(session.user.created_at).getTime(),
+          };
+          setUser(newUser);
+          
+          setTimeout(() => {
+            checkAdminStatus(session.user.id).catch(() => {
+              setIsAdmin(false);
+            });
+          }, 100);
+        }
+      })
+      .catch(() => {
+        setUser(null);
+        setIsAdmin(false);
+      });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const checkAdminStatus = async (userId: string) => {
     if (!supabase) return;
     try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('userId', userId)
-        .eq('role', 'admin')
-        .maybeSingle();
-      
-      if (!error && data) {
-        setIsAdmin(true);
-      }
+      // For the minimal schema, we don't have user_roles table
+      // Default to false since the table doesn't exist in our fresh setup
+      setIsAdmin(false);
     } catch (error) {
       // Silent failure - admin check is not critical for app functionality
-      // Error details only logged in development mode
-      if (import.meta.env.DEV) {
-
-      }
+      setIsAdmin(false);
     }
   };
 

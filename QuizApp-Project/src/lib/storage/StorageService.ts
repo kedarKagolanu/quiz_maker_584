@@ -49,6 +49,14 @@ export class StorageService {
   }
 
   async getUserQuizzes(userId: string): Promise<Quiz[]> {
+    // Use the driver's direct method if available (more efficient)
+    if (this.driver.getUserQuizzes) {
+      console.log('🔄 Using driver getUserQuizzes method');
+      return this.driver.getUserQuizzes(userId);
+    }
+    
+    // Fallback to filtering all quizzes
+    console.log('⚠️ Using fallback getUserQuizzes - filtering all quizzes');
     const quizzes = await this.driver.getQuizzes();
     
     // Get permissions to include quizzes where user has been granted access
@@ -170,6 +178,14 @@ export class StorageService {
   }
 
   async getUserFolders(userId: string): Promise<QuizFolder[]> {
+    // Use the driver's direct method if available (more efficient)
+    if (this.driver.getUserFolders) {
+      console.log('🔄 Using driver getUserFolders method');
+      return this.driver.getUserFolders(userId);
+    }
+    
+    // Fallback to filtering all folders
+    console.log('⚠️ Using fallback getUserFolders - filtering all folders');
     const folders = await this.driver.getFolders();
     const permissions = await this.getFolderPermissions?.('') || [];
     
@@ -308,18 +324,34 @@ export class StorageService {
 
   // Chat operations
   async getChatGroups(): Promise<ChatGroup[]> {
-    return this.driver.getChatGroups();
+    console.log('🔄 StorageService: getChatGroups called');
+    if (!this.driver.getChatGroups) {
+      console.error('❌ Driver does not implement getChatGroups');
+      return [];
+    }
+    const result = await this.driver.getChatGroups();
+    console.log('📊 StorageService: getChatGroups result:', result.length, 'groups');
+    return result;
   }
 
   async getAllChatGroups(): Promise<ChatGroup[]> {
-    if ('getAllChatGroups' in this.driver) {
+    console.log('🔄 StorageService: getAllChatGroups called');
+    if ('getAllChatGroups' in this.driver && this.driver.getAllChatGroups) {
+      console.log('✅ Using driver getAllChatGroups method');
       return (this.driver as any).getAllChatGroups();
     }
-    return this.driver.getChatGroups(); // Fallback for LocalStorage
+    console.log('⚠️ Falling back to getChatGroups for getAllChatGroups');
+    return this.getChatGroups(); // Fallback for LocalStorage
   }
 
   async saveChatGroup(group: ChatGroup): Promise<void> {
-    return this.driver.saveChatGroup(group);
+    console.log('🔄 StorageService: saveChatGroup called for:', group.name);
+    if (!this.driver.saveChatGroup) {
+      console.error('❌ Driver does not implement saveChatGroup');
+      throw new Error('Chat group saving not supported by current driver');
+    }
+    await this.driver.saveChatGroup(group);
+    console.log('✅ StorageService: saveChatGroup completed');
   }
 
   async updateChatGroup(group: ChatGroup): Promise<void> {

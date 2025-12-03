@@ -6,6 +6,7 @@ import { storage } from "@/lib/storage";
 import { ChatGroup, ChatMessage, Quiz, QuizFolder } from "@/types/quiz";
 import { MessageCircle, Users, Plus, Send, Share2, ExternalLink, Hash, Lock, UserPlus, RefreshCw, Folder, Globe } from "lucide-react";
 import { PageDescription } from "@/components/PageDescription";
+// import { TestAfterFix } from "../tmp_rovodev_test_after_fix";
 import { useRecursiveQuestionCounts } from "@/hooks/useRecursiveQuestionCount";
 import { toast } from "sonner";
 
@@ -65,14 +66,39 @@ export const Chat: React.FC = () => {
       const allGroups = await storage.getChatGroups() || [];
 
       
-      // Filter for user's groups (check both string and UUID formats)
+      // Filter for user's groups (use consistent user.id only)
+      console.log('🔍 Filtering groups for user:', user.id);
+      console.log('📊 All groups from DB:', allGroups.map(g => ({
+        id: g.id,
+        name: g.name,
+        creator: g.creator,
+        members: g.members,
+        type: g.type
+      })));
+      
       const userGroups = allGroups.filter(g => {
-        const isMember = g.members.includes(user.id) || g.members.includes(user.username);
-        const isCreator = g.creator === user.id || g.creator === user.username;
-
-  
-        return isMember || isCreator;
+        if (!g.members || !Array.isArray(g.members)) {
+          console.warn('⚠️ Group has invalid members array:', g.id, g.members);
+          return g.creator === user.id;
+        }
+        
+        const isMember = g.members.includes(user.id);
+        const isCreator = g.creator === user.id;
+        const hasAccess = isMember || isCreator;
+        
+        console.log(`🔍 Group ${g.name}:`, {
+          creator: g.creator,
+          members: g.members,
+          userId: user.id,
+          isCreator,
+          isMember,
+          hasAccess
+        });
+        
+        return hasAccess;
       });
+      
+      console.log('✅ Filtered user groups:', userGroups.length, 'out of', allGroups.length);
       
 
       setGroups(userGroups);
@@ -86,8 +112,36 @@ export const Chat: React.FC = () => {
       setMyFolders(allFolders.filter(f => f.creator === user.id));
       
       // Load all users for direct chat
+      console.log('🔍 STEP 1: Loading users for direct chat...');
+      console.log('📊 Current user context:', { id: user.id, username: user.username });
+      
       const users = await storage.getUsers();
-      setAllUsers(users.filter(u => u.id !== user.id));
+      console.log('🔍 STEP 2: Users returned from storage:', {
+        total: users.length,
+        rawUsers: users,
+        currentUserId: user.id
+      });
+      
+      const filteredUsers = users.filter(u => u.id !== user.id);
+      console.log('🔍 STEP 3: After filtering current user:', {
+        beforeFilter: users.length,
+        afterFilter: filteredUsers.length,
+        filteredUsers: filteredUsers.map(u => ({ id: u.id, username: u.username }))
+      });
+      
+      setAllUsers(filteredUsers);
+      console.log('🔍 STEP 4: Set allUsers state with', filteredUsers.length, 'users');
+      
+      if (users.length === 0) {
+        console.error('❌ ISSUE: No users found in database');
+        console.error('- Check if profiles table exists');
+        console.error('- Check RLS policies');
+        console.error('- Check database connection');
+      } else if (filteredUsers.length === 0) {
+        console.warn('⚠️ ISSUE: Only current user found - no other users for chat');
+        console.warn('- Database has users but only current user');
+        console.warn('- Check if other users have profiles created');
+      }
       
 
       
@@ -236,39 +290,38 @@ export const Chat: React.FC = () => {
   }, [autoRefresh, user]);
 
   const handleCreateGroup = async () => {
-    if (!createGroupForm.name.trim() || !user) return;
+    if (!createGroupForm.name.trim() || !user) {
+      toast.error('Group name is required');
+      return;
+    }
 
     const accessCode = createGroupForm.isPrivate 
       ? Math.random().toString(36).substring(2, 8).toUpperCase()
       : undefined;
 
-    // Use both user ID and username for compatibility
-    const memberId = user.id || user.username;
-    const creatorId = user.id || user.username;
-    
+    // Always use user ID for consistency
     const newGroup: ChatGroup = {
       id: `group_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       name: createGroupForm.name.trim(),
       description: createGroupForm.description.trim() || undefined,
-      creator: creatorId,
-      members: [memberId],
+      creator: user.id,
+      members: [user.id], // Use user ID consistently
       createdAt: Date.now(),
       isPrivate: createGroupForm.isPrivate,
       accessCode,
       type: 'group',
     };
     
-
+    console.log('🆕 Creating group:', newGroup);
 
     try {
-
       await storage.saveChatGroup(newGroup);
-
+      console.log('✅ Group created successfully');
       
       // Add to local state immediately
       setGroups(prev => {
         const updated = [...prev, newGroup];
-
+        console.log('📊 Updated groups list:', updated.length);
         return updated;
       });
       
@@ -284,41 +337,88 @@ export const Chat: React.FC = () => {
         toast.success("Group created!");
       }
       
-      // Reload data to verify persistence
-      setTimeout(() => {
-
-        loadData();
-      }, 1000);
+      // Reload data after a short delay to verify persistence  
+      setTimeout(async () => {
+        console.log('🔄 Reloading data to verify group persistence...');
+        try {
+          await loadData();
+          console.log('✅ Data reloaded successfully after group creation');
+        } catch (error) {
+          console.error('❌ Failed to reload data after group creation:', error);
+        }
+      }, 500);
       
     } catch (error) {
-
-      toast.error('Failed to create group');
+      console.error('❌ Failed to create group:', error);
+      toast.error('Failed to create group. Please try again.');
     }
   };
 
   const handleJoinGroup = async () => {
-    if (!joinGroupCode.trim() || !user) return;
+    if (!joinGroupCode.trim() || !user) {
+      console.log('❌ ACCESS CODE STEP 1: Empty code entered or no user');
+      return;
+    }
 
     try {
       const inputCode = joinGroupCode.trim().toUpperCase();
+      console.log('🔍 ACCESS CODE STEP 1: Starting join process with code:', inputCode);
 
       
       // Get ALL groups (not just user's groups) to find the one with matching access code
+      console.log('🔍 ACCESS CODE STEP 2: Getting ALL chat groups...');
       const allGroups = await storage.getAllChatGroups() || [];
-
+      console.log('🔍 ACCESS CODE STEP 3: Retrieved groups:', {
+        totalGroups: allGroups.length,
+        groupsWithAccessCodes: allGroups.filter(g => g.accessCode).map(g => ({
+          id: g.id,
+          name: g.name,
+          accessCode: g.accessCode,
+          isPrivate: g.isPrivate,
+          creator: g.creator
+        })),
+        allGroupsRaw: allGroups.map(g => ({
+          id: g.id,
+          name: g.name,
+          accessCode: g.accessCode
+        }))
+      });
       
       // Find group with matching access code (case insensitive)
+      console.log('🔍 ACCESS CODE STEP 4: Searching for matching access code...');
       const group = allGroups.find(g => {
         if (!g.accessCode) return false;
         const groupCode = g.accessCode.toUpperCase();
-
         return groupCode === inputCode;
+      });
+      
+      console.log('🔍 ACCESS CODE STEP 5: Search result:', {
+        searchedCode: inputCode,
+        foundGroup: group ? {
+          id: group.id,
+          name: group.name,
+          accessCode: group.accessCode,
+          creator: group.creator,
+          members: group.members
+        } : null,
+        exactMatches: allGroups.filter(g => g.accessCode === inputCode).length
       });
 
       if (!group) {
-
-
-        toast.error("Invalid access code");
+        console.error('❌ ACCESS CODE STEP 6: No matching group found');
+        console.error('Available access codes:', allGroups.filter(g => g.accessCode).map(g => g.accessCode));
+        console.error('Search details:', {
+          enteredCode: inputCode,
+          codeType: typeof inputCode,
+          codeLength: inputCode.length,
+          availableCodes: allGroups.filter(g => g.accessCode).map(g => ({
+            code: g.accessCode,
+            type: typeof g.accessCode,
+            length: g.accessCode?.length,
+            groupName: g.name
+          }))
+        });
+        toast.error(`Invalid access code: ${inputCode}`);
         return;
       }
       
@@ -338,7 +438,16 @@ export const Chat: React.FC = () => {
         members: [...group.members, user.id]
       };
 
+      console.log('🔄 Updating group membership for:', group.name);
+      console.log('👥 Adding user to group:', { 
+        groupId: group.id, 
+        currentMembers: group.members, 
+        newMember: user.id,
+        updatedMembers: updatedGroup.members 
+      });
+      
       await storage.updateChatGroup(updatedGroup);
+      console.log('✅ Group membership updated successfully');
       
       // Update local state
       setGroups(prev => {
@@ -809,6 +918,20 @@ export const Chat: React.FC = () => {
       <div className="mt-6">
         <TerminalButton onClick={() => navigate("/dashboard")}>back to dashboard</TerminalButton>
       </div>
+
+    {/* Debug Test Component (temporary) */}
+    <div className="mt-6 p-4 border border-blue-200 rounded bg-blue-50">
+      <h3 className="font-bold text-blue-800 mb-2">🛠️ Chat System Status</h3>
+      <p className="text-sm text-blue-600">
+        After running the UUID fix SQL, test these features:
+      </p>
+      <ul className="text-xs text-blue-600 mt-2 space-y-1">
+        <li>✅ Click "Start Direct Chat" - users should appear</li>
+        <li>✅ Click "Add User" - users should appear</li>
+        <li>✅ Enter valid access codes - should work</li>
+        <li>✅ Create groups and share access codes</li>
+      </ul>
+    </div>
 
     {/* Page Description */}
     <div className="mt-6 p-4 border border-terminal-accent/30 rounded bg-terminal-accent/10">
