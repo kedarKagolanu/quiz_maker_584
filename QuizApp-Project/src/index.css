@@ -2,6 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * Mobile UI Optimization Utilities
+ * @description Mobile-specific CSS utilities for better mobile experience
+ */
+@layer utilities {
+  /* Mobile-safe viewport heights - handles mobile browser address bar issues */
+  .min-h-mobile-safe {
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height for modern browsers */
+  }
+  
+  .h-mobile-safe {
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height */
+  }
+  
+  /* Mobile-safe spacing for device notches and safe areas */
+  .pb-mobile-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+  
+  .pt-mobile-safe {
+    padding-top: env(safe-area-inset-top, 1rem);
+  }
+  
+  .px-mobile-safe {
+    padding-left: env(safe-area-inset-left, 1rem);
+    padding-right: env(safe-area-inset-right, 1rem);
+  }
+  
+  /* Touch-friendly minimum sizes following iOS/Android guidelines */
+  .touch-target {
+    min-height: 44px; /* iOS recommended minimum */
+    min-width: 44px;
+  }
+  
+  .touch-target-large {
+    min-height: 48px; /* Material Design recommended */
+    min-width: 48px;
+  }
+  
+  /* Mobile-optimized modal positioning */
+  .modal-mobile {
+    @media (max-width: 640px) {
+      position: fixed !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      top: auto !important;
+      transform: none !important;
+      border-radius: 1rem 1rem 0 0 !important;
+      max-height: 90vh !important;
+    }
+  }
+}
+
 @layer base {
   :root {
     /* These will be overridden by ThemeContext - keeping as fallback */

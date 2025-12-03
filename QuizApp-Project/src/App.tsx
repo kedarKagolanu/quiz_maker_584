@@ -24,6 +24,7 @@ import { Suspense, lazy } from "react";
 
 // Global Components - Always available components
 import { MusicPlayer } from "@/components/MusicPlayer";
+import { MobileNavigation } from "@/components/MobileNavigation";
 
 /**
  * CRITICAL PAGES - Loaded synchronously for immediate access
@@ -156,10 +157,13 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
+            
+            {/* Global Music Player - Always available */}
+            <MusicPlayer isAdvanced={true} />
+            
+            {/* Mobile Navigation - Only shows on mobile devices */}
+            <MobileNavigation />
           </BrowserRouter>
-          
-          {/* Global Music Player - Always available */}
-          <MusicPlayer isAdvanced={true} />
         </TooltipProvider>
       </AuthProvider>
     </CacheProvider>
