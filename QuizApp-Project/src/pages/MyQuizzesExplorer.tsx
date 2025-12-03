@@ -71,7 +71,7 @@ export const MyQuizzesExplorer: React.FC = () => {
       parentPath: currentPath || undefined,
       createdAt: Date.now(),
       creator: user.id,
-      isPublic: false,
+      isPublic: true,
     };
     
     try {
@@ -185,6 +185,82 @@ export const MyQuizzesExplorer: React.FC = () => {
     const count = questionCounts.get(quiz.id) || quiz.questions?.length || 0;
     const suffix = quiz.multiQuizSources ? " (including sources)" : "";
     return `${count} questions${suffix}`;
+  };
+
+  // Recursive function to update folder and all its contents
+  const updateFolderVisibilityRecursive = async (folder: QuizFolder, isPublic: boolean) => {
+    const folderPath = folder.parentPath ? `${folder.parentPath}/${folder.name}` : folder.name;
+    
+    console.log('🔄 Starting recursive folder visibility update:', {
+      folder: folderPath,
+      newVisibility: isPublic,
+      hasUpdateFolderMethod: !!storage.updateFolder
+    });
+    
+    // Update the folder itself
+    const updatedFolder = { ...folder, isPublic };
+    if (storage.updateFolder) {
+      await storage.updateFolder(updatedFolder);
+      console.log('✅ Updated main folder:', folder.name, 'to', isPublic ? 'PUBLIC' : 'PRIVATE');
+    } else {
+      throw new Error('updateFolder method not available in storage driver');
+    }
+    
+    // Helper function to check if a path is within our target folder
+    const isInFolder = (itemPath: string, targetFolderPath: string) => {
+      if (!itemPath || !targetFolderPath) return false;
+      return itemPath.startsWith(targetFolderPath + '/') || itemPath === targetFolderPath;
+    };
+    
+    // Find ALL child folders recursively - not just direct children
+    const allChildFolders = folders.filter((f) => {
+      if (!f.parentPath) return false;
+      const childFolderPath = f.parentPath + '/' + f.name;
+      return isInFolder(childFolderPath, folderPath) || f.parentPath === folderPath;
+    });
+    
+    console.log('📁 Found ALL child folders:', allChildFolders.map(f => ({ 
+      name: f.name, 
+      parentPath: f.parentPath,
+      fullPath: f.parentPath ? `${f.parentPath}/${f.name}` : f.name,
+      currentVisibility: f.isPublic ? 'PUBLIC' : 'PRIVATE'
+    })));
+    
+    // Update ALL child folders regardless of their current visibility
+    for (const childFolder of allChildFolders) {
+      const updatedChildFolder = { ...childFolder, isPublic };
+      if (storage.updateFolder) {
+        await storage.updateFolder(updatedChildFolder);
+        const childPath = childFolder.parentPath ? `${childFolder.parentPath}/${childFolder.name}` : childFolder.name;
+        console.log('✅ Updated child folder:', childPath, 'from', childFolder.isPublic ? 'PUBLIC' : 'PRIVATE', 'to', isPublic ? 'PUBLIC' : 'PRIVATE');
+      }
+    }
+    
+    // Find ALL quizzes in this folder and ALL its subfolders
+    const allAffectedQuizzes = quizzes.filter((q) => {
+      if (!q.folderPath) return false;
+      return q.folderPath === folderPath || q.folderPath.startsWith(folderPath + '/');
+    });
+    
+    console.log('📚 Found ALL affected quizzes:', allAffectedQuizzes.map(q => ({ 
+      title: q.title,
+      folderPath: q.folderPath,
+      currentVisibility: q.isPublic ? 'PUBLIC' : 'PRIVATE'
+    })));
+    
+    // Update ALL quizzes regardless of their current visibility
+    for (const quiz of allAffectedQuizzes) {
+      const updatedQuiz = { ...quiz, isPublic };
+      await storage.updateQuiz(updatedQuiz);
+      console.log('✅ Updated quiz:', quiz.title, 'from', quiz.isPublic ? 'PUBLIC' : 'PRIVATE', 'to', isPublic ? 'PUBLIC' : 'PRIVATE');
+    }
+    
+    console.log(`✅ Completed recursive folder visibility update:`, {
+      folder: folderPath,
+      newVisibility: isPublic ? 'PUBLIC' : 'PRIVATE',
+      totalChildFoldersUpdated: allChildFolders.length,
+      totalQuizzesUpdated: allAffectedQuizzes.length
+    });
   };
 
   const currentSubfolders = getCurrentSubfolders();
@@ -333,16 +409,16 @@ export const MyQuizzesExplorer: React.FC = () => {
                           onClick={async (e) => {
                             e.stopPropagation();
                             try {
-                              const updatedFolder = { ...folder, isPublic: !folder.isPublic };
-                              await storage.updateFolder(updatedFolder);
+                              const newVisibility = !folder.isPublic;
+                              await updateFolderVisibilityRecursive(folder, newVisibility);
                               await loadData();
-                              toast.success(`Folder ${updatedFolder.isPublic ? 'made public' : 'made private'}`);
+                              toast.success(`Folder and all contents ${newVisibility ? 'made public' : 'made private'} recursively`);
                             } catch (error) {
                               handleError(error, { userMessage: "Failed to update folder visibility" });
                             }
                           }}
                           className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
-                          title={folder.isPublic ? "Make Private" : "Make Public"}
+                          title={folder.isPublic ? "Make Private (Recursive)" : "Make Public (Recursive)"}
                         >
                           {folder.isPublic ? (
                             <Lock className="w-4 h-4 text-terminal-foreground" />
@@ -412,6 +488,27 @@ export const MyQuizzesExplorer: React.FC = () => {
                     </td>
                     <td className="p-3">
                       <div className="flex gap-1">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              const updatedQuiz = { ...quiz, isPublic: !quiz.isPublic };
+                              await storage.updateQuiz(updatedQuiz);
+                              await loadData();
+                              toast.success(`Quiz ${updatedQuiz.isPublic ? 'made public' : 'made private'}`);
+                            } catch (error) {
+                              handleError(error, { userMessage: "Failed to update quiz visibility" });
+                            }
+                          }}
+                          className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
+                          title={quiz.isPublic ? "Make Private" : "Make Public"}
+                        >
+                          {quiz.isPublic ? (
+                            <Lock className="w-4 h-4 text-terminal-foreground" />
+                          ) : (
+                            <Globe className="w-4 h-4 text-terminal-foreground" />
+                          )}
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -522,6 +619,27 @@ export const MyQuizzesExplorer: React.FC = () => {
                     <span className="text-xs text-terminal-dim">({questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " including sources" : ""})</span>
                   </div>
                   <div className="flex gap-1">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          const updatedQuiz = { ...quiz, isPublic: !quiz.isPublic };
+                          await storage.updateQuiz(updatedQuiz);
+                          await loadData();
+                          toast.success(`Quiz ${updatedQuiz.isPublic ? 'made public' : 'made private'}`);
+                        } catch (error) {
+                          handleError(error, { userMessage: "Failed to update quiz visibility" });
+                        }
+                      }}
+                      className="p-1 hover:bg-terminal-accent/20 rounded"
+                      title={quiz.isPublic ? "Make Private" : "Make Public"}
+                    >
+                      {quiz.isPublic ? (
+                        <Lock className="w-4 h-4" />
+                      ) : (
+                        <Globe className="w-4 h-4" />
+                      )}
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

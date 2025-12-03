@@ -12,6 +12,7 @@ export const ThemeSelector: React.FC = () => {
     { value: 'forest', label: 'Forest', description: 'Natural green tones' },
     { value: 'sunset', label: 'Sunset', description: 'Warm orange glow' },
     { value: 'minimal', label: 'Minimal', description: 'Clean and simple' },
+    { value: 'white', label: 'White', description: 'Clean white design with elegant purple highlights' },
     { value: 'reading', label: 'Reading', description: 'Eye-friendly warm tones' },
     { value: 'soft', label: 'Soft', description: 'Gentle muted colors' },
   ];

@@ -18,7 +18,7 @@ export const QuizBrowser: React.FC = () => {
   const [folders, setFolders] = useState<QuizFolder[]>([]);
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
   const [filteredQuizzes, setFilteredQuizzes] = useState<Quiz[]>([]);
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterType>('folder');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string>("");
   const [folderContents, setFolderContents] = useState<{quizzes: Quiz[], subfolders: QuizFolder[]}>({quizzes: [], subfolders: []});
@@ -294,13 +294,12 @@ export const QuizBrowser: React.FC = () => {
                       className={activeFilter === 'folder' && selectedFolder === folder.id ? 'bg-terminal-accent/20' : ''}
                     >
                       <Folder className="w-4 h-4 mr-1" />
-                      {folder.name} ({getFolderQuizCount(folder.path)} quiz{getFolderQuizCount(folder.path) !== 1 ? 'zes' : ''}
-                      {folder.totalFolders ? `, ${folder.totalFolders} folder${folder.totalFolders !== 1 ? 's' : ''}` : ''})
+                      {folder.name} ({getFolderQuizCount(getFolderPath(folder.id))} quiz{getFolderQuizCount(getFolderPath(folder.id)) !== 1 ? 'zes' : ''})
                     </TerminalButton>
                   ))}
                 </div>
                 <div className="ml-6 text-xs text-terminal-dim mt-2">
-                  Note: Click a folder to see its contents. Only root-level folders and independent quizzes are shown here.
+                  Note: "Independent Quizzes" shows quizzes not in any folder. Click a folder to see its contents.
                 </div>
               </div>
             )}
@@ -345,7 +344,7 @@ export const QuizBrowser: React.FC = () => {
                       <Folder className="w-4 h-4 text-blue-400" />
                       <span className="text-terminal-bright font-semibold">{folder.name}</span>
                       <span className="text-xs text-terminal-dim">
-                        ({getFolderQuizCount(folder.path)} quiz{getFolderQuizCount(folder.path) !== 1 ? 'es' : ''})
+                        ({getFolderQuizCount(getFolderPath(folder.id))} quiz{getFolderQuizCount(getFolderPath(folder.id)) !== 1 ? 'es' : ''})
                       </span>
                     </div>
                     {folder.description && (

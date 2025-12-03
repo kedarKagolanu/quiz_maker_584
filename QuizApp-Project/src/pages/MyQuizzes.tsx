@@ -117,7 +117,7 @@ export const MyQuizzes: React.FC = () => {
       parentPath: currentPath || undefined,
       createdAt: Date.now(),
       creator: user.id,
-      isPublic: false,
+      isPublic: true,
     };
     
     try {

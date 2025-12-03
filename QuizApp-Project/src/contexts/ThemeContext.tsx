@@ -65,102 +65,164 @@ const injectThemeStyles = (preset: string, mode: string, gradientEnabled: boolea
       `}
     }
 
-    /* Enhanced UI elements with better contrast */
+    /* Enhanced UI elements with better contrast and modern design */
     ${gradientEnabled ? `
-      /* Cards and containers */
+      /* Cards and containers with beautiful gradients */
       .rounded, .rounded-lg, .rounded-md {
         background: linear-gradient(135deg, 
-          hsl(${colors.background} / 0.9) 0%, 
-          hsl(${colors.background} / 0.95) 50%,
-          hsl(${colors.accent} / 0.1) 100%) !important;
-        backdrop-filter: blur(8px) !important;
-        border: 1px solid hsl(${colors.accent} / 0.6) !important;
+          hsl(${colors.background} / 0.95) 0%, 
+          hsl(${colors.accent} / ${mode === 'dark' ? '0.08' : '0.03'}) 50%,
+          hsl(${colors.background} / 0.98) 100%) !important;
+        backdrop-filter: blur(12px) !important;
+        border: 2px solid hsl(${colors.accent} / ${mode === 'dark' ? '0.4' : '0.2'}) !important;
+        box-shadow: 
+          0 4px 20px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.3' : '0.08'}),
+          0 1px 3px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.2' : '0.04'}),
+          inset 0 1px 0 rgba(255, 255, 255, ${mode === 'dark' ? '0.1' : '0.5'}) !important;
       }
 
-      /* Text contrast enhancement */
+      /* Enhanced text with subtle shadows */
       .text-terminal-foreground, .text-terminal-bright {
-        text-shadow: 0 1px 2px rgba(${mode === 'dark' ? '0,0,0' : '255,255,255'},0.5) !important;
-        font-weight: 500 !important;
+        text-shadow: 0 1px 2px rgba(${mode === 'dark' ? '0,0,0' : '255,255,255'}, ${mode === 'dark' ? '0.6' : '0.8'}) !important;
+        font-weight: ${mode === 'dark' ? '500' : '600'} !important;
       }
 
-      /* Input fields */
+      /* Modern input fields with glass morphism */
       input, textarea, select {
-        background: hsl(${colors.background} / 0.8) !important;
-        border: 1px solid hsl(${colors.accent} / 0.7) !important;
-        backdrop-filter: blur(5px) !important;
-        color: hsl(${colors.foreground}) !important;
-      }
-    ` : ''}
-
-    /* Enhanced button styling with better contrast */
-    button, .terminal-button {
-      transition: all 0.2s ease !important;
-      ${gradientEnabled ? `
         background: linear-gradient(135deg, 
           hsl(${colors.background} / 0.9) 0%, 
-          hsl(${colors.accent} / 0.2) 100%) !important;
-        backdrop-filter: blur(5px) !important;
+          hsl(${colors.accent} / 0.05) 100%) !important;
+        border: 2px solid hsl(${colors.accent} / ${mode === 'dark' ? '0.3' : '0.25'}) !important;
+        backdrop-filter: blur(10px) !important;
+        box-shadow: 
+          0 4px 16px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.2' : '0.06'}),
+          inset 0 1px 0 rgba(255, 255, 255, ${mode === 'dark' ? '0.1' : '0.4'}) !important;
+        color: hsl(${colors.foreground}) !important;
+        transition: all 0.2s ease !important;
+      }
+      
+      input:focus, textarea:focus, select:focus {
+        border-color: hsl(${colors.accent} / ${mode === 'dark' ? '0.8' : '0.6'}) !important;
+        box-shadow: 
+          0 6px 20px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.3' : '0.12'}),
+          0 0 0 3px hsl(${colors.accent} / ${mode === 'dark' ? '0.2' : '0.1'}),
+          inset 0 1px 0 rgba(255, 255, 255, ${mode === 'dark' ? '0.2' : '0.6'}) !important;
+        outline: none !important;
+      }
+    ` : `
+      /* Clean non-gradient design for white theme */
+      .rounded, .rounded-lg, .rounded-md {
+        background: hsl(${colors.background}) !important;
+        border: 2px solid hsl(${colors.accent} / ${mode === 'dark' ? '0.6' : '0.3'}) !important;
+        box-shadow: 
+          0 2px 12px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.3' : '0.08'}),
+          0 1px 3px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.2' : '0.04'}) !important;
+      }
+      
+      .text-terminal-foreground, .text-terminal-bright {
+        font-weight: ${mode === 'dark' ? '500' : '600'} !important;
+      }
+      
+      input, textarea, select {
+        background: hsl(${colors.background}) !important;
+        border: 2px solid hsl(${colors.accent} / ${mode === 'dark' ? '0.4' : '0.35'}) !important;
+        box-shadow: 
+          0 2px 8px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.2' : '0.06'}),
+          inset 0 1px 0 rgba(255, 255, 255, ${mode === 'dark' ? '0.1' : '0.5'}) !important;
+        color: hsl(${colors.foreground}) !important;
+        transition: all 0.2s ease !important;
+      }
+      
+      input:focus, textarea:focus, select:focus {
+        border-color: hsl(${colors.accent} / ${mode === 'dark' ? '0.8' : '0.7'}) !important;
+        box-shadow: 
+          0 4px 16px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.3' : '0.12'}),
+          0 0 0 3px hsl(${colors.accent} / ${mode === 'dark' ? '0.2' : '0.15'}) !important;
+        outline: none !important;
+      }
+    `}
+
+    /* Modern button styling with enhanced UX */
+    button, .terminal-button {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      ${gradientEnabled ? `
+        background: linear-gradient(135deg, 
+          hsl(${colors.background} / 0.95) 0%, 
+          hsl(${colors.accent} / ${mode === 'dark' ? '0.15' : '0.08'}) 50%,
+          hsl(${colors.background} / 0.98) 100%) !important;
+        backdrop-filter: blur(8px) !important;
       ` : `
-        background-color: hsl(${colors.background} / ${mode === 'dark' ? '0.8' : '0.9'}) !important;
+        background: hsl(${colors.background}) !important;
       `}
-      border: 2px solid hsl(${colors.accent} / ${mode === 'dark' ? '0.8' : '0.9'}) !important;
+      border: 2px solid hsl(${colors.accent} / ${mode === 'dark' ? '0.6' : '0.5'}) !important;
       box-shadow: 
-        0 4px 8px rgba(0,0,0,${mode === 'dark' ? '0.4' : '0.2'}),
-        0 2px 4px rgba(0,0,0,${mode === 'dark' ? '0.3' : '0.15'}) !important;
+        0 3px 12px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.3' : '0.1'}),
+        0 1px 3px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.2' : '0.05'}),
+        inset 0 1px 0 rgba(255, 255, 255, ${mode === 'dark' ? '0.1' : '0.4'}) !important;
       color: hsl(${colors.foreground}) !important;
       font-weight: ${mode === 'light' ? '600' : '500'} !important;
+      border-radius: 8px !important;
+      padding: 8px 16px !important;
     }
 
     button:hover, .terminal-button:hover {
       ${gradientEnabled ? `
         background: linear-gradient(135deg, 
-          hsl(${colors.accent} / 0.3) 0%, 
-          hsl(${colors.bright} / 0.2) 100%) !important;
+          hsl(${colors.accent} / ${mode === 'dark' ? '0.2' : '0.12'}) 0%, 
+          hsl(${colors.bright} / ${mode === 'dark' ? '0.15' : '0.08'}) 50%,
+          hsl(${colors.accent} / ${mode === 'dark' ? '0.25' : '0.15'}) 100%) !important;
       ` : `
-        background-color: hsl(${colors.accent} / ${mode === 'dark' ? '0.3' : '0.4'}) !important;
+        background: hsl(${colors.accent} / ${mode === 'dark' ? '0.2' : '0.15'}) !important;
       `}
+      border-color: hsl(${colors.accent} / ${mode === 'dark' ? '0.8' : '0.8'}) !important;
       box-shadow: 
-        0 6px 12px rgba(0,0,0,${mode === 'dark' ? '0.5' : '0.25'}),
-        0 3px 6px rgba(0,0,0,${mode === 'dark' ? '0.4' : '0.2'}),
-        0 0 6px hsl(${colors.accent} / ${mode === 'dark' ? '0.4' : '0.3'}) !important;
-      transform: translateY(-2px) !important;
-      border-color: hsl(${colors.accent} / ${mode === 'dark' ? '0.9' : '1.0'}) !important;
+        0 6px 20px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.4' : '0.15'}),
+        0 3px 8px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.3' : '0.08'}),
+        0 0 0 2px hsl(${colors.accent} / ${mode === 'dark' ? '0.3' : '0.2'}),
+        inset 0 1px 0 rgba(255, 255, 255, ${mode === 'dark' ? '0.2' : '0.6'}) !important;
+      transform: translateY(-1px) scale(1.02) !important;
+      color: hsl(${colors.bright}) !important;
     }
 
     button:active, .terminal-button:active {
       ${gradientEnabled ? `
         background: linear-gradient(135deg, 
-          hsl(${colors.accent} / 0.4) 0%, 
-          hsl(${colors.background} / 0.9) 100%) !important;
+          hsl(${colors.accent} / ${mode === 'dark' ? '0.3' : '0.25'}) 0%, 
+          hsl(${colors.background} / 0.95) 100%) !important;
       ` : `
-        background-color: hsl(${colors.accent} / ${mode === 'dark' ? '0.5' : '0.6'}) !important;
+        background: hsl(${colors.accent} / ${mode === 'dark' ? '0.3' : '0.25'}) !important;
       `}
       box-shadow: 
-        0 2px 4px rgba(0,0,0,${mode === 'dark' ? '0.4' : '0.2'}),
-        inset 0 2px 4px rgba(0,0,0,${mode === 'dark' ? '0.3' : '0.15'}) !important;
-      transform: translateY(0px) !important;
+        0 1px 4px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.4' : '0.2'}),
+        inset 0 2px 4px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.3' : '0.15'}) !important;
+      transform: translateY(0px) scale(1.0) !important;
+      border-color: hsl(${colors.accent}) !important;
     }
 
-    /* Enhanced background classes for better visibility */
+    /* Enhanced background classes with modern design */
     .bg-terminal-accent\\/10, .bg-terminal-accent\\/20, .bg-terminal-accent\\/30 {
       ${gradientEnabled ? `
         background: linear-gradient(135deg, 
-          hsl(${colors.accent} / 0.25) 0%, 
-          hsl(${colors.background} / 0.9) 50%,
-          hsl(${colors.accent} / 0.15) 100%) !important;
-        backdrop-filter: blur(6px) !important;
+          hsl(${colors.background} / 0.98) 0%, 
+          hsl(${colors.accent} / ${mode === 'dark' ? '0.12' : '0.06'}) 50%,
+          hsl(${colors.background} / 0.95) 100%) !important;
+        backdrop-filter: blur(8px) !important;
       ` : `
-        background-color: hsl(${colors.background} / ${mode === 'dark' ? '0.9' : '0.95'}) !important;
+        background: hsl(${colors.background}) !important;
       `}
-      border: 2px solid hsl(${colors.accent} / ${mode === 'dark' ? '0.7' : '0.8'}) !important;
+      border: 2px solid hsl(${colors.accent} / ${mode === 'dark' ? '0.4' : '0.25'}) !important;
+      border-radius: 12px !important;
       box-shadow: 
-        0 2px 8px rgba(0,0,0,${mode === 'dark' ? '0.4' : '0.15'}),
-        0 0 4px hsl(${colors.accent} / ${mode === 'dark' ? '0.3' : '0.2'}) !important;
+        0 4px 16px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.3' : '0.06'}),
+        0 1px 3px rgba(${mode === 'dark' ? '0,0,0' : '139, 92, 246'}, ${mode === 'dark' ? '0.2' : '0.03'}),
+        inset 0 1px 0 rgba(255, 255, 255, ${mode === 'dark' ? '0.1' : '0.3'}) !important;
     }
 
     .border-terminal-accent\\/30, .border-terminal-accent {
-      border-color: hsl(${colors.accent} / ${mode === 'dark' ? '0.8' : '0.9'}) !important;
-      box-shadow: 0 0 8px hsl(${colors.accent} / ${mode === 'dark' ? '0.4' : '0.3'}) !important;
+      border-color: hsl(${colors.accent} / ${mode === 'dark' ? '0.6' : '0.4'}) !important;
+      box-shadow: 
+        0 0 12px hsl(${colors.accent} / ${mode === 'dark' ? '0.3' : '0.15'}) !important,
+        inset 0 1px 0 rgba(255, 255, 255, ${mode === 'dark' ? '0.1' : '0.2'}) !important;
     }
     
     .text-terminal-foreground {
@@ -379,10 +441,10 @@ const themePresets = {
     },
     light: {
       background: '0 0% 100%',
-      foreground: '0 0% 5%',
-      accent: '0 0% 20%',
-      bright: '0 0% 0%',
-      dim: '0 0% 40%',
+      foreground: '262 83% 15%',
+      accent: '262 100% 65%',
+      bright: '262 100% 50%',
+      dim: '262 40% 70%',
     }
   },
   reading: {
