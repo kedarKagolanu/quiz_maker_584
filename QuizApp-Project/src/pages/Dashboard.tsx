@@ -263,9 +263,15 @@ export const Dashboard: React.FC = () => {
       
       } catch (error) {
         console.error('Error loading dashboard data:', error);
-        setLoadingMessage('Error loading data. Please refresh the page.');
+        toast.error('Error loading data. Please refresh the page.');
+        // Force dismiss loading toast on error
+        toast.dismiss('dashboard-loading');
       } finally {
         setIsLoading(false);
+        // Ensure loading toast is dismissed when loading completes
+        setTimeout(() => {
+          toast.dismiss('dashboard-loading');
+        }, 100); // Small delay to ensure state update completes
       }
     };
     loadData();
@@ -439,11 +445,28 @@ export const Dashboard: React.FC = () => {
   // Use toast loading instead of full page loading
   React.useEffect(() => {
     if (isLoading && loadingMessage) {
-      toast.loading(loadingMessage, { id: 'dashboard-loading' });
+      // Show loading toast with 5-second auto-dismiss as fallback
+      toast.loading(loadingMessage, { 
+        id: 'dashboard-loading',
+        duration: 5000 // Auto-dismiss after 5 seconds
+      });
     } else {
+      // Ensure toast is dismissed when loading completes
       toast.dismiss('dashboard-loading');
     }
   }, [isLoading, loadingMessage]);
+
+  // Additional safety mechanism to force dismiss after 6 seconds
+  React.useEffect(() => {
+    if (isLoading) {
+      const fallbackTimeout = setTimeout(() => {
+        toast.dismiss('dashboard-loading');
+        console.log('🧹 Force dismissed dashboard loading toast after 6 seconds');
+      }, 6000);
+      
+      return () => clearTimeout(fallbackTimeout);
+    }
+  }, [isLoading]);
 
   return (
     <Terminal title={`dashboard - ${user.username}`}>

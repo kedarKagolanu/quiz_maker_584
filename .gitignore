@@ -7,10 +7,12 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+.env
 node_modules
 dist
 dist-ssr
 *.local
+CHAT_FRONTEND_DEBUG.tsx
 
 QuizApp-Project/node_modules
 QuizApp-Project/dist
@@ -27,7 +29,6 @@ scan_file.py
 *.njsproj
 *.sln
 *.sw?
-.env
 *.md
 *.txt
 *.sql
