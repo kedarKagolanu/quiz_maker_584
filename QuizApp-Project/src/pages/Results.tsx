@@ -22,8 +22,7 @@ export const Results: React.FC = () => {
         
         // For multi-quiz, we need to regenerate the questions to match the attempt
         if (quizData && quizData.multiQuizSources && foundAttempt.answers.length !== quizData.questions.length) {
-
-
+          console.log('Multi-quiz detected, loading stored questions for attempt:', foundAttempt.id);
           
           // Try to get the questions from localStorage if available (recent attempt)
           const attemptKey = `quiz_attempt_${foundAttempt.id}_questions`;
@@ -32,6 +31,7 @@ export const Results: React.FC = () => {
           if (storedQuestions) {
             try {
               const parsedQuestions = JSON.parse(storedQuestions);
+              console.log('Successfully loaded stored questions for results');
 
               quizData = {
                 ...quizData,
@@ -39,10 +39,11 @@ export const Results: React.FC = () => {
                 media: parsedQuestions.media || quizData.media
               };
             } catch (error) {
-
+              console.error('Failed to parse stored questions:', error);
+              // Keep original quiz data as fallback
             }
           } else {
-
+            console.warn('No stored questions found for this attempt. Results may be incomplete.');
           }
         }
         
@@ -65,6 +66,9 @@ export const Results: React.FC = () => {
     return (
       <Terminal title="results">
         <TerminalLine>Loading results...</TerminalLine>
+        {!attempt && !quiz && (
+          <TerminalLine>No results found. Please complete a quiz first.</TerminalLine>
+        )}
       </Terminal>
     );
   }
@@ -111,13 +115,13 @@ export const Results: React.FC = () => {
               
               // Skip if no question exists at this index
               if (!question) {
-
+                console.warn(`No question found at index ${idx}`);
                 return null;
               }
 
               // Skip invalid questions (like multi-quiz config placeholders)
               if (!question.q || !question.o || typeof question.a === 'undefined') {
-
+                console.warn(`Invalid question at index ${idx}:`, question);
                 return null;
               }
 

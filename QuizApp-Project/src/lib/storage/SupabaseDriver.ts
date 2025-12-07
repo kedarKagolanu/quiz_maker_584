@@ -24,7 +24,7 @@ export class SupabaseDriver implements IStorageDriver {
     this.supabase = createClient(supabaseUrl, supabaseAnonKey);
     
     // Mark known missing tables in minimal schema
-    this.missingTables.add('quiz_attempts');
+    // Note: quiz_attempts table should now exist if SQL script was run
     this.missingTables.add('quiz_permissions'); 
     this.missingTables.add('folder_permissions');
     this.missingTables.add('edit_requests');
@@ -168,26 +168,26 @@ export class SupabaseDriver implements IStorageDriver {
   private mapAttemptFromDb(dbAttempt: any): QuizAttempt {
     return {
       id: dbAttempt.id,
-      quizId: dbAttempt.quizId,
-      userId: dbAttempt.userId,
+      quizId: dbAttempt.quiz_id || dbAttempt.quizId,
+      userId: dbAttempt.user_id || dbAttempt.userId,
       answers: dbAttempt.answers,
-      timeTaken: dbAttempt.timeTaken,
-      totalTime: dbAttempt.totalTime,
+      timeTaken: dbAttempt.time_taken || dbAttempt.timeTaken,
+      totalTime: dbAttempt.total_time || dbAttempt.totalTime,
       score: dbAttempt.score,
-      completedAt: dbAttempt.completedAt
+      completedAt: dbAttempt.completed_at || dbAttempt.completedAt
     };
   }
 
   private mapAttemptToDb(attempt: QuizAttempt): any {
     return {
       id: attempt.id,
-      quizId: attempt.quizId,
-      userId: attempt.userId,
+      quiz_id: attempt.quizId,
+      user_id: attempt.userId,
       answers: attempt.answers,
-      timeTaken: attempt.timeTaken,
-      totalTime: attempt.totalTime,
+      time_taken: attempt.timeTaken,
+      total_time: attempt.totalTime,
       score: attempt.score,
-      completedAt: attempt.completedAt
+      completed_at: attempt.completedAt
     };
   }
 
@@ -514,19 +514,35 @@ export class SupabaseDriver implements IStorageDriver {
   async getAttempts(): Promise<QuizAttempt[]> {
     // Skip network call entirely if we know the table doesn't exist
     if (this.missingTables.has('quiz_attempts')) {
-      return [];
+      // Return localStorage fallback attempts
+      try {
+        const localAttempts = JSON.parse(localStorage.getItem('quiz_attempts') || '[]');
+        console.log('📱 Retrieved attempts from localStorage fallback:', localAttempts.length);
+        return localAttempts;
+      } catch (error) {
+        console.warn('⚠️ Failed to parse localStorage attempts:', error);
+        return [];
+      }
     }
 
     try {
       const { data, error } = await this.supabase
         .from('quiz_attempts')
         .select('*')
-        .order('completedAt', { ascending: false });
+        .order('completed_at', { ascending: false });
       
       // Handle specific "table not found" error and cache it
       if (error && error.code === 'PGRST205') {
         this.missingTables.add('quiz_attempts');
-        return [];
+        // Return localStorage fallback attempts
+        try {
+          const localAttempts = JSON.parse(localStorage.getItem('quiz_attempts') || '[]');
+          console.log('📱 Database table missing, using localStorage fallback:', localAttempts.length);
+          return localAttempts;
+        } catch (parseError) {
+          console.warn('⚠️ Failed to parse localStorage attempts:', parseError);
+          return [];
+        }
       }
       
       if (error) this.handleDbError(error, 'fetch attempts');
@@ -534,7 +550,15 @@ export class SupabaseDriver implements IStorageDriver {
     } catch (error: any) {
       if (error.message?.includes("Could not find the table 'public.quiz_attempts'") || error.code === 'PGRST205') {
         this.missingTables.add('quiz_attempts');
-        return [];
+        // Return localStorage fallback attempts
+        try {
+          const localAttempts = JSON.parse(localStorage.getItem('quiz_attempts') || '[]');
+          console.log('📱 Database error, using localStorage fallback:', localAttempts.length);
+          return localAttempts;
+        } catch (parseError) {
+          console.warn('⚠️ Failed to parse localStorage attempts:', parseError);
+          return [];
+        }
       }
       throw error;
     }
@@ -543,26 +567,45 @@ export class SupabaseDriver implements IStorageDriver {
   async saveAttempt(attempt: QuizAttempt): Promise<void> {
     // Skip network call entirely if we know the table doesn't exist
     if (this.missingTables.has('quiz_attempts')) {
+      console.log('⚠️ Skipping attempt save - quiz_attempts table marked as missing');
       return;
     }
 
     try {
-      const { error } = await this.supabase
+      const dbAttempt = this.mapAttemptToDb(attempt);
+      console.log('💾 Attempting to save quiz attempt:', {
+        attemptId: attempt.id,
+        quizId: attempt.quizId,
+        userId: attempt.userId,
+        score: attempt.score,
+        dbData: dbAttempt
+      });
+
+      const { data, error } = await this.supabase
         .from('quiz_attempts')
-        .insert(this.mapAttemptToDb(attempt));
+        .insert(dbAttempt)
+        .select();
       
       // Handle specific "table not found" error and cache it
       if (error && error.code === 'PGRST205') {
+        console.error('❌ quiz_attempts table not found (PGRST205)');
         this.missingTables.add('quiz_attempts');
         return;
       }
       
-      if (error) this.handleDbError(error, 'save attempt');
+      if (error) {
+        console.error('❌ Database error saving attempt:', error);
+        this.handleDbError(error, 'save attempt');
+      }
+
+      console.log('✅ Quiz attempt saved successfully to database:', data);
     } catch (error: any) {
       if (error.message?.includes("Could not find the table 'public.quiz_attempts'") || error.code === 'PGRST205') {
+        console.error('❌ quiz_attempts table not found (catch block)');
         this.missingTables.add('quiz_attempts');
         return;
       }
+      console.error('❌ Exception saving attempt:', error);
       throw error;
     }
   }
@@ -577,8 +620,8 @@ export class SupabaseDriver implements IStorageDriver {
       const { data, error } = await this.supabase
         .from('quiz_attempts')
         .select('*')
-        .eq('userId', userId)
-        .order('completedAt', { ascending: false });
+        .eq('user_id', userId)
+        .order('completed_at', { ascending: false });
       
       // Handle specific "table not found" error and cache it
       if (error && error.code === 'PGRST205') {
@@ -607,8 +650,8 @@ export class SupabaseDriver implements IStorageDriver {
       const { data, error } = await this.supabase
         .from('quiz_attempts')
         .select('*')
-        .eq('quizId', quizId)
-        .order('completedAt', { ascending: false });
+        .eq('quiz_id', quizId)
+        .order('completed_at', { ascending: false });
       
       // Handle specific "table not found" error and cache it
       if (error && error.code === 'PGRST205') {

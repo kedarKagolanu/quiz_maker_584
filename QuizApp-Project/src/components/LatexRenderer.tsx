@@ -35,6 +35,8 @@ const processSpecialCharacters = (text: string): string => {
       .replace(/\\\\t/g, '\\t')  // \\t becomes literal \t text
       .replace(/\\\\\*/g, '\\*') // \\* becomes literal \* text
       .replace(/\\\\_/g, '\\_')  // \\_ becomes literal \_ text
+      .replace(/\/\/n/g, '//n')  // Preserve //n in LaTeX contexts
+      .replace(/\/\//g, '//')    // Preserve // in LaTeX contexts
       
       // NORMAL FORMATTING - Process after escape sequences
       .replace(/\\n/g, '<br>')   // \n becomes line break
@@ -51,8 +53,11 @@ const processSpecialCharacters = (text: string): string => {
       .replace(/__([^_$]+)__/g, '<strong>$1</strong>')     // __text__ = bold
       .replace(/_([^_$]+)_/g, '<em>$1</em>')               // _text_ = italic
       
-      // CODE FORMATTING - Generate React elements instead of HTML strings
-      .replace(/`([^`]+)`/g, '###CODE_START###$1###CODE_END###')
+      // CODE FORMATTING - Handle all backtick patterns (process longer patterns first)
+      // Handle multiline code blocks properly, including those after \n
+      .replace(/````\s*\n?([^]*?)````/g, '###BLOCK_CODE_START###$1###BLOCK_CODE_END###')  // Quadruple backticks
+      .replace(/```\s*([a-z]*)\s*\n?([^]*?)```/g, '###BLOCK_CODE_START###$2###BLOCK_CODE_END###')  // Triple backticks with optional language
+      .replace(/`([^`\n]+?)`/g, '###INLINE_CODE_START###$1###INLINE_CODE_END###')       // Single backticks (inline only)
       
       // GREEK LETTERS (only if not in LaTeX context)
       .replace(/\\alpha(?![a-zA-Z])/g, 'α')
@@ -174,17 +179,53 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
                       KEEP_CONTENT: true
                     });
                     final.push(<span key={`html-${idx}-${itemIdx}`} dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />);
-                  } else if (itemStr.includes('###CODE_START###')) {
-                    // Handle code blocks with proper React styling
-                    const codeParts = itemStr.split(/(###CODE_START###[^#]*###CODE_END###)/);
+                  } else if (itemStr.includes('###BLOCK_CODE_START###')) {
+                    // Handle BLOCK code (``` or ````) 
+                    const codeParts = itemStr.split(/(###BLOCK_CODE_START###[^#]*###BLOCK_CODE_END###)/);
                     final.push(
-                      <span key={`code-${idx}-${itemIdx}`}>
+                      <span key={`block-code-${idx}-${itemIdx}`}>
                         {codeParts.map((codePart, codeIdx) => {
-                          if (codePart.includes('###CODE_START###')) {
-                            const codeText = codePart.replace(/###CODE_START###|###CODE_END###/g, '');
+                          if (codePart.includes('###BLOCK_CODE_START###')) {
+                            const codeText = codePart.replace(/###BLOCK_CODE_START###|###BLOCK_CODE_END###/g, '');
+                            return (
+                              <div key={`block-code-wrapper-${codeIdx}`} style={{ display: 'block', width: '100%' }}>
+                                <pre style={{ 
+                                  background: 'rgba(0,0,0,0.1)', 
+                                  padding: '12px', 
+                                  borderRadius: '6px', 
+                                  fontFamily: 'monospace',
+                                  whiteSpace: 'pre-wrap',
+                                  overflow: 'auto',
+                                  border: '1px solid rgba(0,0,0,0.2)',
+                                  margin: '8px 0',
+                                  display: 'block',
+                                  width: '100%'
+                                }}>
+                                  <code style={{ 
+                                    color: '#60a5fa',
+                                    background: 'transparent'
+                                  }}>
+                                    {codeText}
+                                  </code>
+                                </pre>
+                              </div>
+                            );
+                          }
+                          return codePart;
+                        })}
+                      </span>
+                    );
+                  } else if (itemStr.includes('###INLINE_CODE_START###')) {
+                    // Handle INLINE code (`) - existing logic but renamed
+                    const codeParts = itemStr.split(/(###INLINE_CODE_START###[^#]*###INLINE_CODE_END###)/);
+                    final.push(
+                      <span key={`inline-code-${idx}-${itemIdx}`}>
+                        {codeParts.map((codePart, codeIdx) => {
+                          if (codePart.includes('###INLINE_CODE_START###')) {
+                            const codeText = codePart.replace(/###INLINE_CODE_START###|###INLINE_CODE_END###/g, '');
                             return (
                               <code 
-                                key={`code-inner-${codeIdx}`}
+                                key={`inline-code-inner-${codeIdx}`}
                                 style={{ 
                                   background: 'rgba(0,0,0,0.2)', 
                                   padding: '2px 4px', 
@@ -202,7 +243,17 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
                       </span>
                     );
                   } else {
-                    final.push(<span key={`text-${idx}-${itemIdx}`}>{itemStr}</span>);
+                    // Regular text - check for any remaining code markers that weren't processed
+                    if (itemStr.includes('###') && (itemStr.includes('CODE_START') || itemStr.includes('CODE_END'))) {
+                      // Clean up any leftover markers
+                      const cleanedText = itemStr.replace(/###[A-Z_]+###/g, '');
+                      if (cleanedText.trim()) {
+                        final.push(<span key={`text-${idx}-${itemIdx}`}>{cleanedText}</span>);
+                      }
+                    } else {
+                      // Regular text
+                      final.push(<span key={`text-${idx}-${itemIdx}`}>{itemStr}</span>);
+                    }
                   }
                 }
               }

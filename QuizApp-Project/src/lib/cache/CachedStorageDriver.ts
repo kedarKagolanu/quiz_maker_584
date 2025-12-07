@@ -115,8 +115,23 @@ export class CachedStorageDriver implements IStorageDriver {
     );
   }
 
+  async saveUser(user: any): Promise<void> {
+    await this.driver.saveUser?.(user);
+    
+    // Invalidate user-related caches
+    this.cache.invalidatePattern('*users*');
+  }
+
+  async getCurrentUser(): Promise<any | null> {
+    return this.driver.getCurrentUser?.() || Promise.resolve(null);
+  }
+
+  async setCurrentUser(user: any | null): Promise<void> {
+    await this.driver.setCurrentUser?.(user);
+  }
+
   // MISSING METHOD: getUsers for chat functionality
-  async getUsers(): Promise<User[]> {
+  async getUsers(): Promise<any[]> {
     return this.cache.get(
       'all-users',
       async () => {
@@ -189,6 +204,15 @@ export class CachedStorageDriver implements IStorageDriver {
     
     // Invalidate folder-related caches
     this.cache.invalidatePattern('*folder*');
+  }
+
+  async renameFolder(id: string, newName: string): Promise<void> {
+    await this.driver.renameFolder?.(id, newName);
+    
+    // Invalidate folder-related caches
+    this.cache.invalidatePattern('*folder*');
+    this.cache.invalidatePattern('*user-folders*');
+    this.cache.invalidatePattern('*user-quizzes*');
   }
 
   // ===== MUSIC OPERATIONS =====

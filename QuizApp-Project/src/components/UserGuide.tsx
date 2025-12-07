@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Terminal, TerminalLine, TerminalButton } from "./Terminal";
-import { ChevronDown, ChevronRight, BookOpen, MessageCircle, Settings, Share2, Lock, Globe, Clock, Shuffle } from "lucide-react";
+import { ChevronDown, ChevronRight, BookOpen, MessageCircle, Settings, Share2, Lock, Globe, Clock, Shuffle, Music } from "lucide-react";
 
 export const UserGuide: React.FC = () => {
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
@@ -165,6 +165,42 @@ export const UserGuide: React.FC = () => {
         "• All buttons have proper contrast in every theme",
         "• Responsive design works on mobile and desktop",
         "• Terminal-style interface for a unique experience"
+      ]
+    },
+    {
+      id: "formatting-guide",
+      title: "Text Formatting & LaTeX",
+      icon: <BookOpen className="w-4 h-4" />,
+      content: [
+        "📝 Text Formatting:",
+        "• **bold text** or __bold text__ → Bold formatting",
+        "• *italic text* or _italic text_ → Italic formatting", 
+        "• ***bold+italic*** → Combined bold and italic",
+        "• \\n → Line break",
+        "• \\t → Tab spacing (4 spaces)",
+        "",
+        "💻 Code Formatting:",
+        "• `inline code` → Inline code with monospace font",
+        "• ```block code``` → Code block with background",
+        "• ````large code```` → Large code block format",
+        "• All code formats work in questions and options",
+        "",
+        "🔬 LaTeX Math (NEW & IMPROVED):",
+        "• $x^2 + y^2 = z^2$ → Renders mathematical equations",
+        "• $\\frac{a}{b} + \\sqrt{c}$ → Fractions and square roots",
+        "• $\\alpha, \\beta, \\pi, \\sigma$ → Greek letters",
+        "• $\\rightarrow, \\leftarrow, \\infinity$ → Mathematical symbols",
+        "• //n and // now work correctly in LaTeX (FIXED)",
+        "",
+        "🛠️ Escape Sequences:",
+        "• \\\\n → Shows literal '\\n' text (not line break)",
+        "• \\\\* → Shows literal '\\*' text (not formatting)",
+        "• Use double backslash to show formatting characters literally",
+        "",
+        "📋 Example JSON:",
+        "• {\"q\":\"What is $x^2$ when x=3?\",\"o\":[\"6\",\"9\",\"12\"],\"a\":1}",
+        "• {\"q\":\"Code: `function()` vs ```\\nblock\\n```\",\"o\":[\"A\",\"B\"],\"a\":0}",
+        "• {\"q\":\"Line 1\\nLine 2 **bold** text\",\"o\":[\"Option\"],\"a\":0}"
       ]
     },
     {

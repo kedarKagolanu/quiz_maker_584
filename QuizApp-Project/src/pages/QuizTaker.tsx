@@ -10,6 +10,8 @@ import { soundEffects } from "@/lib/soundEffects";
 import { generateMultiQuizQuestions, MultiQuizGenerationResult } from "@/lib/multiQuizGenerator";
 import { resolveRecursiveQuestions, collectAllRecursiveQuestions } from "@/lib/recursiveQuizResolver";
 import { collectLeafQuestions } from "@/lib/quizSourceTree";
+import { useTabSwitchDetection } from "@/hooks/useTabSwitchDetection";
+import { useQuizStatePreservation } from "@/hooks/useQuizStatePreservation";
 
 export const QuizTaker: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +38,55 @@ export const QuizTaker: React.FC = () => {
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [currentSection, setCurrentSection] = useState(0);
   const [questionSections, setQuestionSections] = useState<{title: string, questions: QuizQuestion[], startIndex: number}[]>([]);
+
+  // Tab switching detection
+  const hasAnyTimeLimit = quiz && (quiz.timeLimit || quiz.perQuestionTimeLimit);
+  
+  // Create a unique key for each quiz attempt to reset tab switch counters
+  const quizAttemptKey = `${quiz?.id || 'unknown'}_${Date.now()}`;
+  
+  // State preservation for ALL quizzes during session (different restore policy)
+  const { 
+    saveState, 
+    loadState, 
+    clearState, 
+    createFreshState, 
+    isStateRestored, 
+    setIsStateRestored 
+  } = useQuizStatePreservation(
+    quiz?.id || '', 
+    questions.length, 
+    true // Enable for all quizzes during session
+  );
+  
+  const { switchCount, warningCount, remainingWarnings } = useTabSwitchDetection({
+    maxWarnings: 3,
+    hasTimeLimit: !!hasAnyTimeLimit,
+    onWarningLimitExceeded: () => {
+      // For timed quizzes: End quiz directly without dialog
+      console.log('Maximum tab switches exceeded - ending quiz');
+      handleSubmit(); // End quiz and submit current answers
+    },
+    onTabSwitch: (count) => {
+      console.log(`Tab switch detected. Total switches: ${count}`);
+      // Save state for ALL quizzes on tab switch - state should persist during quiz session
+      if (quiz && questions.length > 0) {
+        saveState({
+          answers,
+          timeTaken,
+          currentIndex,
+          questionStatus,
+          markedForReview,
+          quizStartTime,
+          questionStartTime,
+          timeLeft,
+          questionTimeLeft
+        });
+      }
+    },
+    enabled: !!quiz, // Only enable after quiz is loaded
+    key: quizAttemptKey // Force new instance for each quiz attempt
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -347,10 +398,46 @@ export const QuizTaker: React.FC = () => {
 
 
       
-      setAnswers(new Array(qs.length).fill(-1));
-      setTimeTaken(new Array(qs.length).fill(0));
-      setQuestionStatus(new Array(qs.length).fill('unattempted'));
-      setMarkedForReview(new Array(qs.length).fill(false));
+      // Check for saved state for ALL quizzes (timed and untimed)
+      const savedState = loadState();
+      if (savedState && savedState.answers.length === qs.length) {
+        // Restore saved state including timer state
+        setAnswers(savedState.answers);
+        setTimeTaken(savedState.timeTaken);
+        setCurrentIndex(Math.min(savedState.currentIndex, qs.length - 1));
+        setQuestionStatus(savedState.questionStatus);
+        setMarkedForReview(savedState.markedForReview);
+        setQuestionStartTime(savedState.questionStartTime);
+        
+        // Restore timer states for timed quizzes
+        if (savedState.timeLeft !== undefined) {
+          setTimeLeft(savedState.timeLeft);
+        }
+        if (savedState.questionTimeLeft !== undefined) {
+          setQuestionTimeLeft(savedState.questionTimeLeft);
+        }
+        
+        setIsStateRestored(true);
+        const quizType = fetchedQuiz.timeLimit || fetchedQuiz.perQuestionTimeLimit ? 'timed' : 'untimed';
+        toast.success(`Quiz state restored! Continuing ${quizType} quiz where you left off.`, { duration: 3000 });
+      } else {
+        // Initialize fresh state
+        setAnswers(new Array(qs.length).fill(-1));
+        setTimeTaken(new Array(qs.length).fill(0));
+        setCurrentIndex(0);
+        setQuestionStatus(new Array(qs.length).fill('unattempted'));
+        setMarkedForReview(new Array(qs.length).fill(false));
+        setQuestionStartTime(Date.now());
+        
+        // Initialize timer states
+        if (fetchedQuiz.timeLimit) {
+          setTimeLeft(fetchedQuiz.timeLimit * 60); // Convert minutes to seconds
+        }
+        if (fetchedQuiz.perQuestionTimeLimit && fetchedQuiz.perQuestionTimeLimit > 0) {
+          setQuestionTimeLeft(fetchedQuiz.perQuestionTimeLimit);
+        }
+      }
+      
       setUserLayout(fetchedQuiz.layout || 'default');
       soundEffects.quizStart();
 
@@ -363,17 +450,8 @@ export const QuizTaker: React.FC = () => {
       
 
 
-      // Set quiz-wide timer only for Mode 1 (not Mode 3)
-      if (fetchedQuiz.timeLimit && !hasPerQuestionTimer) {
-        setTimeLeft(fetchedQuiz.timeLimit);
-      }
-      
-      // Set per-question timer for Mode 3 (only if > 0)
-      if (fetchedQuiz.perQuestionTimeLimit && fetchedQuiz.perQuestionTimeLimit > 0) {
-        setQuestionTimeLeft(fetchedQuiz.perQuestionTimeLimit);
-      } else {
-        setQuestionTimeLeft(null);
-      }
+      // Timer initialization is now handled in the state restoration logic above
+      // This prevents duplicate initialization that would override restored timer values
     };
     
     loadQuiz();
@@ -501,15 +579,20 @@ export const QuizTaker: React.FC = () => {
   };
 
   useEffect(() => {
-    // Warn user before navigating away
+    // Only warn user before navigating away if quiz has time limits
+    // For untimed quizzes, allow seamless tab switching
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
+      // Only prevent navigation for quizzes with time limits
+      if (hasAnyTimeLimit) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+      // For untimed quizzes, don't prevent navigation - let it continue normally
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+  }, [hasAnyTimeLimit]);
 
   useEffect(() => {
     if (timeLeft !== null && timeLeft > 0) {
@@ -560,6 +643,22 @@ export const QuizTaker: React.FC = () => {
     const newStatus = [...questionStatus];
     newStatus[currentIndex] = 'attempted';
     setQuestionStatus(newStatus);
+    
+    // Auto-save for all quizzes during session (cleared only on completion or navigation away)
+    if (quiz) {
+      saveState({
+        answers: newAnswers,
+        timeTaken,
+        currentIndex,
+        questionStatus: newStatus,
+        markedForReview,
+        quizStartTime,
+        questionStartTime,
+        timeLeft,
+        questionTimeLeft
+      });
+    }
+    
     soundEffects.buttonClick();
   };
 
@@ -665,7 +764,7 @@ export const QuizTaker: React.FC = () => {
       timeTaken: finalTimeTaken,
       totalTime: Math.floor((Date.now() - quizStartTime) / 1000),
       score: scorePercentage,
-      completedAt: Date.now(),
+      completedAt: Date.now()
     };
 
     // Store the actual questions used for this attempt (important for multi-quiz)
@@ -680,7 +779,36 @@ export const QuizTaker: React.FC = () => {
 
     }
 
-    await storage.saveAttempt(attempt);
+    // Save attempt to storage (database or localStorage fallback)
+    try {
+      await storage.saveAttempt(attempt);
+      console.log('✅ Quiz attempt saved to database');
+    } catch (error) {
+      // Fallback to localStorage if database fails
+      console.warn('⚠️ Database save failed, using localStorage fallback:', error);
+      const attempts = JSON.parse(localStorage.getItem('quiz_attempts') || '[]');
+      attempts.push(attempt);
+      localStorage.setItem('quiz_attempts', JSON.stringify(attempts));
+      console.log('✅ Quiz attempt saved to localStorage fallback');
+    }
+    
+    // Clear quiz state since quiz is completed
+    clearState();
+    
+    // Store questions for results page (especially important for multi-quiz)
+    const attemptKey = `quiz_attempt_${attempt.id}_questions`;
+    try {
+      localStorage.setItem(attemptKey, JSON.stringify({
+        questions: questions,
+        media: quiz.media || []
+      }));
+    } catch (error) {
+      console.warn('Failed to store questions for results:', error);
+    }
+    
+    // Clear saved state since quiz is completed (for all quizzes)
+    clearState();
+    
     soundEffects.quizComplete();
     toast.success(`Quiz completed! Score: ${scorePercentage.toFixed(1)}%`);
     navigate(`/results/${attempt.id}`);
@@ -918,13 +1046,34 @@ export const QuizTaker: React.FC = () => {
 
   return (
       <Terminal title={`quiz: ${quiz.title}`}>
-        {/* Warning Banner */}
-        <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-500/50 rounded">
-          <div className="flex items-center gap-2 text-yellow-300">
-            <span className="text-lg">⚠️</span>
-            <span className="text-sm">
-              <strong>Warning:</strong> Navigating away or refreshing will restart the quiz from the beginning.
-            </span>
+        {/* Dynamic Warning Banner */}
+        <div className={`mb-4 p-3 rounded ${hasAnyTimeLimit ? 'bg-yellow-900/20 border border-yellow-500/50' : 'bg-blue-900/20 border border-blue-500/50'}`}>
+          <div className={`flex items-center gap-2 ${hasAnyTimeLimit ? 'text-yellow-300' : 'text-blue-300'}`}>
+            <span className="text-lg">{hasAnyTimeLimit ? '⚠️' : '🎯'}</span>
+            <div className="text-sm">
+              {hasAnyTimeLimit ? (
+                <div>
+                  <div>
+                    <strong>Timed Quiz:</strong> Navigating away or refreshing will restart the quiz.
+                  </div>
+                  <div className="mt-1 text-xs">
+                    <strong>Tab Switch Policy:</strong> You get {3 - warningCount} warning(s) remaining. 
+                    After {3} tab switches, you'll be asked to end the quiz or restart.
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div>
+                    <strong>Untimed Quiz:</strong> You can switch tabs freely - your progress is preserved!
+                  </div>
+                  {switchCount > 0 && (
+                    <div className="mt-1 text-xs">
+                      Tab switches: {switchCount} (no penalties for untimed quizzes)
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

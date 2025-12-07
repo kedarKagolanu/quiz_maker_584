@@ -1257,6 +1257,12 @@ export const QuizCreator: React.FC = () => {
             <div>• Regular text: Just type normally without $ signs</div>
           </div>
           <div className="ml-6 text-sm space-y-1 text-terminal-dim mt-3">
+            <div className="text-terminal-bright">Code Formatting (NEW):</div>
+            <div>• <span className="text-terminal-accent">`inline code`</span> → Inline code with monospace font</div>
+            <div>• <span className="text-terminal-accent">```block code```</span> → Code block with background</div>
+            <div>• <span className="text-terminal-accent">````large code````</span> → Large code block format</div>
+          </div>
+          <div className="ml-6 text-sm space-y-1 text-terminal-dim mt-3">
             <div className="text-terminal-bright">Adding Images & Audio:</div>
             <div>• Upload images/audio in the "upload media" section above</div>
             <div>• Each file gets a number (#1, #2, #3, etc.)</div>
@@ -1279,7 +1285,9 @@ export const QuizCreator: React.FC = () => {
                 <div>• <span className="text-terminal-accent">**bold**</span> or <span className="text-terminal-accent">__bold__</span> → <strong>bold</strong></div>
                 <div>• <span className="text-terminal-accent">*italic*</span> or <span className="text-terminal-accent">_italic_</span> → <em>italic</em></div>
                 <div>• <span className="text-terminal-accent">***bold+italic***</span> → <strong><em>bold+italic</em></strong></div>
-                <div>• <span className="text-terminal-accent">`code`</span> → <code style={{ background: 'rgba(0,0,0,0.2)', padding: '1px 3px', borderRadius: '2px' }}>code</code></div>
+                <div>• <span className="text-terminal-accent">`inline code`</span> → <code style={{ background: 'rgba(0,0,0,0.2)', padding: '1px 3px', borderRadius: '2px' }}>inline code</code></div>
+                <div>• <span className="text-terminal-accent">```block code```</span> → <pre style={{ background: 'rgba(0,0,0,0.1)', padding: '8px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px', margin: '4px 0' }}>block code</pre></div>
+                <div>• <span className="text-terminal-accent">````large code````</span> → <pre style={{ background: 'rgba(0,0,0,0.1)', padding: '8px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px', margin: '4px 0' }}>large code</pre></div>
               </div>
               <div>
                 <div className="text-terminal-accent font-semibold">Escape Sequences:</div>
@@ -1287,6 +1295,8 @@ export const QuizCreator: React.FC = () => {
                 <div>• <span className="text-terminal-accent">\\t</span> → Tab (4 spaces)</div>
                 <div>• <span className="text-terminal-accent">\\\\n</span> → Literal "\\n" text</div>
                 <div>• <span className="text-terminal-accent">\\\\*</span> → Literal "\\*" text</div>
+                <div>• <span className="text-terminal-accent">//n</span> → Works in LaTeX (fixed)</div>
+                <div>• <span className="text-terminal-accent">//</span> → Works in LaTeX (fixed)</div>
               </div>
             </div>
             <div className="mt-2">
@@ -1296,12 +1306,20 @@ export const QuizCreator: React.FC = () => {
               <div>• <span className="text-terminal-accent">\\degree \\plusminus \\multiply \\divide</span> → ° ± × ÷</div>
             </div>
             <div className="text-yellow-400 mt-3 p-2 bg-yellow-400/10 rounded">
-              <div className="font-semibold">JSON Example:</div>
-              <div className="font-mono text-xs mt-1">{`{"q":"Line 1\\nLine 2\\n**Bold** and ***bold+italic***\\nTo show literal \\\\n use double backslash","o":["Option A","Option B"],"a":0}`}</div>
+              <div className="font-semibold">JSON Examples:</div>
+              <div className="font-mono text-xs mt-1 space-y-1">
+                <div>{'{"q":"Line 1\\nLine 2\\n**Bold** and ***bold+italic***","o":["Option A","Option B"],"a":0}'}</div>
+                <div>{'{"q":"Inline `code` and ```\\nblock code\\n``` work","o":["A","B"],"a":0}'}</div>
+                <div>{'{"q":"LaTeX: $x^2 + y^2 = z^2$ and \\\\alpha works","o":["A","B"],"a":0}'}</div>
+              </div>
             </div>
             <div className="text-green-400 mt-2 p-2 bg-green-400/10 rounded">
-              <div className="font-semibold">This renders as:</div>
-              <div>Line 1<br />Line 2<br /><strong>Bold</strong> and <strong><em>bold+italic</em></strong><br />To show literal \\n use double backslash</div>
+              <div className="font-semibold">These render as:</div>
+              <div className="space-y-2">
+                <div>Line 1<br />Line 2<br /><strong>Bold</strong> and <strong><em>bold+italic</em></strong></div>
+                <div>Inline <code style={{ background: 'rgba(0,0,0,0.2)', padding: '1px 3px', borderRadius: '2px' }}>code</code> and <pre style={{ background: 'rgba(0,0,0,0.1)', padding: '8px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px', margin: '4px 0', display: 'inline-block' }}>block code</pre> work</div>
+                <div>LaTeX: <em>x² + y² = z²</em> and α works</div>
+              </div>
             </div>
           </div>
         </div>

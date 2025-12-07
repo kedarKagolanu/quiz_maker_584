@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LatexRenderer } from '@/components/LatexRenderer';
 import { renderMediaTags } from '@/lib/mediaRenderer';
+import { ImprovedJsonEditor } from '@/components/ImprovedJsonEditor';
 import { toast } from 'sonner';
 
 interface RawJsonEditorProps {
@@ -155,11 +156,12 @@ export const RawJsonEditor: React.FC<RawJsonEditorProps> = ({
             </Alert>
           )}
 
-          <Textarea
+          <ImprovedJsonEditor
             value={rawJson}
-            onChange={(e) => handleJsonChange(e.target.value)}
+            onChange={handleJsonChange}
             placeholder="Paste your quiz questions JSON here..."
-            className="min-h-96 font-mono text-sm"
+            className="w-full"
+            minHeight={400}
           />
 
           <div className="text-xs text-gray-500">
