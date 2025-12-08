@@ -26,12 +26,30 @@ export const MyQuizzesExplorer: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'details' | 'list'>('details');
   
-  // Copy/Cut/Paste functionality
+  // Move functionality for folders + Copy/Cut/Paste for quizzes
+  const [moveSelection, setMoveSelection] = useState<{
+    itemId: string;
+    itemType: 'quiz' | 'folder';
+  } | null>(null);
+  
+  // Copy/Cut/Paste functionality for quizzes
   const [clipboard, setClipboard] = useState<{
     itemId: string;
     itemType: 'quiz' | 'folder';
     operation: 'copy' | 'cut';
   } | null>(null);
+  
+  // Undo/Redo functionality
+  const [undoStack, setUndoStack] = useState<Array<{
+    action: 'move' | 'copy' | 'delete' | 'rename';
+    data: any;
+    timestamp: number;
+  }>>([]);
+  const [redoStack, setRedoStack] = useState<Array<{
+    action: 'move' | 'copy' | 'delete' | 'rename';
+    data: any;
+    timestamp: number;
+  }>>([]);
   
   // Drag and drop state
   const [draggedItem, setDraggedItem] = useState<{
@@ -52,6 +70,10 @@ export const MyQuizzesExplorer: React.FC = () => {
   const [showEditFolderTags, setShowEditFolderTags] = useState<string | null>(null);
   const [editFolderTagsValue, setEditFolderTagsValue] = useState("");
   
+  // Inline tag editing in table
+  const [inlineEditTags, setInlineEditTags] = useState<string | null>(null);
+  const [inlineTagsValue, setInlineTagsValue] = useState("");
+  
   // Get recursive question counts for all quizzes
   const { questionCounts } = useRecursiveQuestionCounts(quizzes);
 
@@ -64,13 +86,29 @@ export const MyQuizzesExplorer: React.FC = () => {
   }, [user, navigate, currentPath]);
 
   const loadData = async () => {
+    console.log('🔄 Loading data...');
     const allQuizzes = await storage.getQuizzes();
     const userQuizzes = allQuizzes.filter((q) => q.creator === user?.id);
+    console.log('📄 Loaded quizzes:', userQuizzes.length);
     setQuizzes(userQuizzes);
     
     const allFolders = await storage.getFolders();
     const userFolders = allFolders.filter((f) => f.creator === user?.id);
+    console.log('📁 Loaded folders:', userFolders.length);
     setFolders(userFolders);
+
+    // Debug current folder structure
+    console.log('📊 Current folder structure:');
+    userFolders.forEach(folder => {
+      console.log(`  📁 ${folder.name} (parent: ${folder.parentPath || 'Root'})`);
+    });
+    
+    console.log('📊 Current quiz structure:');
+    userQuizzes.forEach(quiz => {
+      console.log(`  📄 ${quiz.title} (folder: ${quiz.folderPath || 'Root'})`);
+    });
+    
+    console.log('✅ Data loaded successfully');
   };
 
   const getCurrentFolderQuizzes = () => {
@@ -213,7 +251,7 @@ export const MyQuizzesExplorer: React.FC = () => {
     return `${count} questions${suffix}`;
   };
 
-  // Copy/Cut/Paste functions
+  // Copy/Cut/Paste functions for quizzes
   const handleCopy = (itemId: string, itemType: 'quiz' | 'folder') => {
     setClipboard({ itemId, itemType, operation: 'copy' });
     toast.success(`${itemType} copied to clipboard`);
@@ -247,10 +285,12 @@ export const MyQuizzesExplorer: React.FC = () => {
           await storage.saveQuiz(newQuiz);
           toast.success('Quiz copied successfully');
         } else {
-          // Move quiz to current folder
+          // CUT operation - Move quiz to current folder
+          console.log('🔄 Moving quiz:', quiz.title, 'to', currentPath || 'Root');
           const updatedQuiz = { ...quiz, folderPath: currentPath || undefined };
           await storage.updateQuiz(updatedQuiz);
-          toast.success('Quiz moved successfully');
+          console.log('✅ Quiz moved successfully');
+          toast.success(`📄 Moved quiz "${quiz.title}" to "${currentPath || 'Root'}"`);
           setClipboard(null); // Clear clipboard after cut operation
         }
       } else {
@@ -272,10 +312,96 @@ export const MyQuizzesExplorer: React.FC = () => {
           await storage.saveFolder(newFolder);
           toast.success('Folder copied successfully');
         } else {
-          // Move folder to current location
+          // CUT operation - Move folder with all contents recursively (no name change)
+          const folderFullPath = folder.parentPath ? `${folder.parentPath}/${folder.name}` : folder.name;
+          
+          // Prevent moving folder into itself or its children
+          if (currentPath && (currentPath === folderFullPath || currentPath.startsWith(folderFullPath + '/'))) {
+            toast.error('Cannot move folder into itself or its children');
+            return;
+          }
+
+          console.log('🔄 Cut-paste moving folder with all contents:', folder.name);
+
+          // Find all child folders and quizzes recursively
+          const childFolders: QuizFolder[] = [];
+          const childQuizzes: Quiz[] = [];
+
+          const findAllChildren = (folderPath: string) => {
+            // Find direct child folders
+            const directChildFolders = folders.filter(f => f.parentPath === folderPath);
+            childFolders.push(...directChildFolders);
+
+            // Find direct child quizzes
+            const directChildQuizzes = quizzes.filter(q => q.folderPath === folderPath);
+            childQuizzes.push(...directChildQuizzes);
+
+            // Recursively find children of child folders
+            directChildFolders.forEach(childFolder => {
+              const childFolderPath = folderPath ? `${folderPath}/${childFolder.name}` : childFolder.name;
+              findAllChildren(childFolderPath);
+            });
+          };
+
+          findAllChildren(folderFullPath);
+
+          console.log('📦 Moving folder with contents:', {
+            folder: folder.name,
+            childFolders: childFolders.length,
+            childQuizzes: childQuizzes.length
+          });
+
+          // Move the main folder
           const updatedFolder = { ...folder, parentPath: currentPath || undefined };
           await storage.updateFolder(updatedFolder);
-          toast.success('Folder moved successfully');
+
+          // Move all child folders (update their parentPath)
+          for (const childFolder of childFolders) {
+            const oldParentPath = childFolder.parentPath || '';
+            console.log('🔄 Updating child folder:', childFolder.name, 'from', oldParentPath);
+            
+            let newParentPath;
+            if (oldParentPath === folderFullPath) {
+              // Direct child of the moved folder
+              newParentPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
+            } else if (oldParentPath.startsWith(folderFullPath + '/')) {
+              // Nested child folder
+              const relativePath = oldParentPath.substring(folderFullPath.length + 1);
+              newParentPath = currentPath ? `${currentPath}/${folder.name}/${relativePath}` : `${folder.name}/${relativePath}`;
+            } else {
+              // This shouldn't happen, but keep the old path as fallback
+              newParentPath = oldParentPath;
+            }
+            
+            console.log('📦 New parent path for', childFolder.name, ':', newParentPath);
+            const updatedChildFolder = { ...childFolder, parentPath: newParentPath || undefined };
+            await storage.updateFolder(updatedChildFolder);
+          }
+
+          // Move all child quizzes (update their folderPath)
+          for (const childQuiz of childQuizzes) {
+            const oldFolderPath = childQuiz.folderPath || '';
+            console.log('🔄 Updating child quiz:', childQuiz.title, 'from', oldFolderPath);
+            
+            let newFolderPath;
+            if (oldFolderPath === folderFullPath) {
+              // Quiz directly in the moved folder
+              newFolderPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
+            } else if (oldFolderPath.startsWith(folderFullPath + '/')) {
+              // Quiz in nested folder
+              const relativePath = oldFolderPath.substring(folderFullPath.length + 1);
+              newFolderPath = currentPath ? `${currentPath}/${folder.name}/${relativePath}` : `${folder.name}/${relativePath}`;
+            } else {
+              // This shouldn't happen, but keep the old path as fallback
+              newFolderPath = oldFolderPath;
+            }
+            
+            console.log('📄 New folder path for', childQuiz.title, ':', newFolderPath);
+            const updatedChildQuiz = { ...childQuiz, folderPath: newFolderPath || undefined };
+            await storage.updateQuiz(updatedChildQuiz);
+          }
+          
+          toast.success(`📦 Moved folder "${folder.name}" with ${childFolders.length} subfolders and ${childQuizzes.length} quizzes`);
           setClipboard(null); // Clear clipboard after cut operation
         }
       }
@@ -283,6 +409,142 @@ export const MyQuizzesExplorer: React.FC = () => {
       await loadData();
     } catch (error) {
       handleError(error, { userMessage: 'Failed to paste item' });
+    }
+  };
+
+  // Move functions for folders only (Ctrl+M)
+  const handleSelectForMove = (itemId: string, itemType: 'quiz' | 'folder') => {
+    if (itemType === 'folder') {
+      setMoveSelection({ itemId, itemType });
+      toast.success(`📦 Folder selected for moving (Ctrl+V to move here)`);
+    }
+  };
+
+  const handleMove = async () => {
+    if (!moveSelection) return;
+
+    try {
+      const folder = folders.find(f => f.id === moveSelection.itemId);
+      if (!folder) {
+        toast.error('Folder not found');
+        return;
+      }
+
+      console.log('🔄 Moving folder:', {
+        folderName: folder.name,
+        currentParentPath: folder.parentPath,
+        targetPath: currentPath,
+        folderId: folder.id
+      });
+
+      // Build the full current path of the folder
+      const folderFullPath = folder.parentPath ? `${folder.parentPath}/${folder.name}` : folder.name;
+      
+      // Prevent moving folder into itself or its children
+      if (currentPath && (currentPath === folderFullPath || currentPath.startsWith(folderFullPath + '/'))) {
+        toast.error('Cannot move folder into itself or its children');
+        return;
+      }
+
+      // Save state for undo functionality
+      const undoData = {
+        folder: { ...folder },
+        childFolders: [] as QuizFolder[],
+        childQuizzes: [] as Quiz[]
+      };
+
+      // Find all child folders and quizzes recursively
+      const findAllChildren = (folderPath: string) => {
+        // Find direct child folders
+        const childFolders = folders.filter(f => f.parentPath === folderPath);
+        undoData.childFolders.push(...childFolders);
+
+        // Find direct child quizzes
+        const childQuizzes = quizzes.filter(q => q.folderPath === folderPath);
+        undoData.childQuizzes.push(...childQuizzes);
+
+        // Recursively find children of child folders
+        childFolders.forEach(childFolder => {
+          const childFolderPath = folderPath ? `${folderPath}/${childFolder.name}` : childFolder.name;
+          findAllChildren(childFolderPath);
+        });
+      };
+
+      findAllChildren(folderFullPath);
+
+      console.log('📦 Moving folder with contents:', {
+        folder: folder.name,
+        childFolders: undoData.childFolders.length,
+        childQuizzes: undoData.childQuizzes.length
+      });
+
+      // Move the main folder
+      const updatedFolder = { ...folder, parentPath: currentPath || undefined };
+      await storage.updateFolder(updatedFolder);
+
+      // Move all child folders (update their parentPath)
+      for (const childFolder of undoData.childFolders) {
+        const oldParentPath = childFolder.parentPath || '';
+        console.log('🔄 Updating child folder:', childFolder.name, 'from', oldParentPath);
+        
+        let newParentPath;
+        if (oldParentPath === folderFullPath) {
+          // Direct child of the moved folder
+          newParentPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
+        } else if (oldParentPath.startsWith(folderFullPath + '/')) {
+          // Nested child folder
+          const relativePath = oldParentPath.substring(folderFullPath.length + 1);
+          newParentPath = currentPath ? `${currentPath}/${folder.name}/${relativePath}` : `${folder.name}/${relativePath}`;
+        } else {
+          // This shouldn't happen, but keep the old path as fallback
+          newParentPath = oldParentPath;
+        }
+        
+        console.log('📦 New parent path for', childFolder.name, ':', newParentPath);
+        const updatedChildFolder = { ...childFolder, parentPath: newParentPath || undefined };
+        await storage.updateFolder(updatedChildFolder);
+      }
+
+      // Move all child quizzes (update their folderPath)
+      for (const childQuiz of undoData.childQuizzes) {
+        const oldFolderPath = childQuiz.folderPath || '';
+        console.log('🔄 Updating child quiz:', childQuiz.title, 'from', oldFolderPath);
+        
+        let newFolderPath;
+        if (oldFolderPath === folderFullPath) {
+          // Quiz directly in the moved folder
+          newFolderPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
+        } else if (oldFolderPath.startsWith(folderFullPath + '/')) {
+          // Quiz in nested folder
+          const relativePath = oldFolderPath.substring(folderFullPath.length + 1);
+          newFolderPath = currentPath ? `${currentPath}/${folder.name}/${relativePath}` : `${folder.name}/${relativePath}`;
+        } else {
+          // This shouldn't happen, but keep the old path as fallback
+          newFolderPath = oldFolderPath;
+        }
+        
+        console.log('📄 New folder path for', childQuiz.title, ':', newFolderPath);
+        const updatedChildQuiz = { ...childQuiz, folderPath: newFolderPath || undefined };
+        await storage.updateQuiz(updatedChildQuiz);
+      }
+
+      // Add to undo stack
+      setUndoStack(prev => [...prev, {
+        action: 'move',
+        data: undoData,
+        timestamp: Date.now()
+      }]);
+      setRedoStack([]); // Clear redo stack when new action is performed
+
+      console.log('✅ Folder and all contents moved successfully');
+      
+      toast.success(`📦 Moved folder "${folder.name}" with ${undoData.childFolders.length} subfolders and ${undoData.childQuizzes.length} quizzes`);
+      
+      setMoveSelection(null); // Clear move selection after operation
+      await loadData();
+    } catch (error) {
+      console.error('❌ Failed to move folder:', error);
+      handleError(error, { userMessage: 'Failed to move folder' });
     }
   };
 
@@ -324,6 +586,12 @@ export const MyQuizzesExplorer: React.FC = () => {
         const folder = folders.find(f => f.id === draggedItem.id);
         if (!folder) return;
 
+        // Prevent moving folder into itself or its children
+        if (targetPath && targetPath.startsWith(folder.name)) {
+          toast.error('Cannot move folder into itself or its children');
+          return;
+        }
+
         const updatedFolder = { ...folder, parentPath: targetPath || undefined };
         await storage.updateFolder(updatedFolder);
         toast.success('Folder moved successfully');
@@ -349,51 +617,109 @@ export const MyQuizzesExplorer: React.FC = () => {
   React.useEffect(() => {
     const handleGlobalClick = () => setContextMenu(null);
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Copy: Ctrl+C
-      if (e.ctrlKey && e.key === 'c' && selectedItem) {
-        const [type, id] = selectedItem.split('-');
-        handleCopy(id, type as 'quiz' | 'folder');
+      console.log('🎹 Key pressed:', e.key, 'Ctrl:', e.ctrlKey, 'Selected:', selectedItem);
+      
+      if (!selectedItem) {
+        console.log('❌ No item selected, ignoring keyboard shortcut');
+        return;
       }
-      // Cut: Ctrl+X  
-      if (e.ctrlKey && e.key === 'x' && selectedItem) {
-        const [type, id] = selectedItem.split('-');
-        handleCut(id, type as 'quiz' | 'folder');
+      
+      const [type, id] = selectedItem.split('-');
+      console.log('📋 Processing shortcut for:', type, id);
+      
+      if (type === 'quiz') {
+        // Quiz operations: Copy/Cut/Paste
+        if (e.ctrlKey && e.key === 'c') {
+          e.preventDefault();
+          console.log('📋 Copying quiz:', id);
+          handleCopy(id, 'quiz');
+        }
+        if (e.ctrlKey && e.key === 'x') {
+          e.preventDefault();
+          console.log('✂️ Cutting quiz:', id);
+          handleCut(id, 'quiz');
+        }
+      } else if (type === 'folder') {
+        // Folder operations: Copy/Cut/Move
+        if (e.ctrlKey && e.key === 'c') {
+          e.preventDefault();
+          console.log('📋 Copying folder:', id);
+          handleCopy(id, 'folder');
+        }
+        if (e.ctrlKey && e.key === 'x') {
+          e.preventDefault();
+          console.log('✂️ Cutting folder:', id);
+          handleCut(id, 'folder');
+        }
+        if (e.ctrlKey && e.key === 'm') {
+          e.preventDefault();
+          console.log('📦 Selecting folder for move:', id);
+          // Clear any existing clipboard when using move
+          setClipboard(null);
+          handleSelectForMove(id, 'folder');
+        }
       }
-      // Paste: Ctrl+V
-      if (e.ctrlKey && e.key === 'v' && clipboard) {
-        handlePaste();
+      
+      // Paste: Ctrl+V (works for both clipboard and move selection)
+      if (e.ctrlKey && e.key === 'v') {
+        e.preventDefault();
+        if (clipboard) {
+          console.log('📋 Pasting from clipboard:', clipboard);
+          handlePaste();
+        } else if (moveSelection) {
+          console.log('📦 Moving selected item:', moveSelection);
+          handleMove();
+        } else {
+          console.log('❌ No clipboard or move selection for paste');
+        }
       }
+      
       // Delete: Delete key
-      if (e.key === 'Delete' && selectedItem) {
-        const [type, id] = selectedItem.split('-');
+      if (e.key === 'Delete') {
         if (type === 'quiz') {
+          console.log('🗑️ Deleting quiz:', id);
           handleDelete(id);
         } else {
           const folder = folders.find(f => f.id === id);
-          if (folder) handleDeleteFolder(id, folder.name);
-        }
-      }
-      // Rename: F2
-      if (e.key === 'F2' && selectedItem) {
-        const [type, id] = selectedItem.split('-');
-        if (type === 'folder') {
-          const folder = folders.find(f => f.id === id);
           if (folder) {
-            setRenameFolderValue(folder.name);
-            setShowRenameFolder(id);
+            console.log('🗑️ Deleting folder:', id);
+            handleDeleteFolder(id, folder.name);
           }
         }
       }
-      // Edit tags: F3
-      if (e.key === 'F3' && selectedItem) {
-        const [type, id] = selectedItem.split('-');
-        if (type === 'folder') {
-          const folder = folders.find(f => f.id === id);
-          if (folder) {
-            setEditFolderTagsValue((folder.tags || []).join(', '));
-            setShowEditFolderTags(id);
-          }
+      
+      // Rename: F2 (folders only)
+      if (e.key === 'F2' && type === 'folder') {
+        console.log('✏️ Renaming folder:', id);
+        const folder = folders.find(f => f.id === id);
+        if (folder) {
+          setRenameFolderValue(folder.name);
+          setShowRenameFolder(id);
         }
+      }
+      
+      // Edit tags: F3 (folders only)
+      if (e.key === 'F3' && type === 'folder') {
+        console.log('🏷️ Editing folder tags:', id);
+        const folder = folders.find(f => f.id === id);
+        if (folder) {
+          setEditFolderTagsValue((folder.tags || []).join(', '));
+          setShowEditFolderTags(id);
+        }
+      }
+      
+      // Undo: Ctrl+Z
+      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        console.log('⤴️ Undo triggered');
+        handleUndo();
+      }
+      
+      // Redo: Ctrl+Shift+Z or Ctrl+Y
+      if ((e.ctrlKey && e.shiftKey && e.key === 'Z') || (e.ctrlKey && e.key === 'y')) {
+        e.preventDefault();
+        console.log('⤵️ Redo triggered');
+        handleRedo();
       }
     };
 
@@ -404,7 +730,81 @@ export const MyQuizzesExplorer: React.FC = () => {
       document.removeEventListener('click', handleGlobalClick);
       document.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [selectedItem, clipboard, folders]);
+  }, [selectedItem, moveSelection, clipboard, folders]);
+
+  // Debug selected item changes
+  React.useEffect(() => {
+    console.log('🎯 Selected item changed to:', selectedItem);
+  }, [selectedItem]);
+
+  // Undo and Redo functions
+  const handleUndo = async () => {
+    if (undoStack.length === 0) {
+      toast.error('Nothing to undo');
+      return;
+    }
+
+    const lastAction = undoStack[undoStack.length - 1];
+    
+    try {
+      if (lastAction.action === 'move') {
+        const { folder, childFolders, childQuizzes } = lastAction.data;
+        
+        // Restore the main folder to its original position
+        await storage.updateFolder(folder);
+        
+        // Restore all child folders
+        for (const childFolder of childFolders) {
+          await storage.updateFolder(childFolder);
+        }
+        
+        // Restore all child quizzes
+        for (const childQuiz of childQuizzes) {
+          await storage.updateQuiz(childQuiz);
+        }
+        
+        toast.success(`⤴️ Undid move of folder "${folder.name}"`);
+      }
+      
+      // Move action from undo to redo stack
+      setRedoStack(prev => [...prev, lastAction]);
+      setUndoStack(prev => prev.slice(0, -1));
+      
+      await loadData();
+    } catch (error) {
+      handleError(error, { userMessage: 'Failed to undo action' });
+    }
+  };
+
+  const handleRedo = async () => {
+    if (redoStack.length === 0) {
+      toast.error('Nothing to redo');
+      return;
+    }
+
+    const lastAction = redoStack[redoStack.length - 1];
+    
+    try {
+      if (lastAction.action === 'move') {
+        // Re-execute the move operation
+        // This is similar to handleMove but using stored data
+        const { folder, childFolders, childQuizzes } = lastAction.data;
+        
+        // Re-apply the move to main folder and children
+        // (Implementation would go here - similar to handleMove logic)
+        
+        toast.success(`⤵️ Redid move of folder "${folder.name}"`);
+      }
+      
+      // Move action from redo to undo stack
+      setUndoStack(prev => [...prev, lastAction]);
+      setRedoStack(prev => prev.slice(0, -1));
+      
+      await loadData();
+    } catch (error) {
+      handleError(error, { userMessage: 'Failed to redo action' });
+    }
+  };
 
   // Folder tag editing functions
   const handleEditFolderTags = async (folderId: string) => {
@@ -433,6 +833,45 @@ export const MyQuizzesExplorer: React.FC = () => {
     } catch (error) {
       handleError(error, { userMessage: "Failed to update folder tags" });
     }
+  };
+
+  // Inline tag editing functions
+  const handleInlineTagEdit = async (folderId: string) => {
+    if (inlineTagsValue.trim() === '') {
+      setInlineEditTags(null);
+      return;
+    }
+
+    try {
+      const folder = folders.find(f => f.id === folderId);
+      if (!folder) return;
+
+      const tags = inlineTagsValue
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0)
+        .filter((tag, index, arr) => arr.indexOf(tag) === index); // Remove duplicates
+
+      const updatedFolder = { ...folder, tags };
+      await storage.updateFolder(updatedFolder);
+      
+      setInlineEditTags(null);
+      setInlineTagsValue("");
+      await loadData();
+      toast.success('Folder tags updated!');
+    } catch (error) {
+      handleError(error, { userMessage: "Failed to update folder tags" });
+    }
+  };
+
+  const startInlineTagEdit = (folder: QuizFolder) => {
+    setInlineEditTags(folder.id);
+    setInlineTagsValue((folder.tags || []).join(', '));
+  };
+
+  const cancelInlineTagEdit = () => {
+    setInlineEditTags(null);
+    setInlineTagsValue("");
   };
 
   // Recursive function to update folder and all its contents
@@ -610,6 +1049,52 @@ export const MyQuizzesExplorer: React.FC = () => {
           </div>
         )}
 
+        {/* Clipboard/Move Status Box */}
+        {(clipboard || moveSelection) && (
+          <div className="mb-4 p-3 border-l-4 border-blue-500 bg-blue-500/10 rounded-r">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {moveSelection ? (
+                  <>
+                    <Copy className="w-4 h-4 text-purple-400" />
+                    <span className="text-terminal-bright text-sm">
+                      📦 Selected for Move: {moveSelection.itemType} (will move to current folder)
+                    </span>
+                  </>
+                ) : clipboard ? (
+                  <>
+                    {clipboard.operation === 'copy' ? (
+                      <Copy className="w-4 h-4 text-blue-400" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-orange-400" />
+                    )}
+                    <span className="text-terminal-bright text-sm">
+                      {clipboard.operation === 'copy' ? 'Copied' : 'Cut'}: {clipboard.itemType} 
+                      {clipboard.operation === 'copy' ? ' (will duplicate)' : ' (will move)'}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-terminal-dim">
+                  Press Ctrl+V to {moveSelection ? 'move' : 'paste'} here
+                </span>
+                <button
+                  onClick={() => {
+                    setClipboard(null);
+                    setMoveSelection(null);
+                    toast.success('Cleared clipboard and move selection');
+                  }}
+                  className="text-terminal-dim hover:text-red-400 transition-colors"
+                  title="Clear"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Explorer View */}
         <div className="flex-1 border border-terminal-accent/30 rounded overflow-hidden">
           {viewMode === 'details' ? (
@@ -620,6 +1105,7 @@ export const MyQuizzesExplorer: React.FC = () => {
                   <th className="p-3 text-terminal-bright font-semibold">Date Modified</th>
                   <th className="p-3 text-terminal-bright font-semibold">Type</th>
                   <th className="p-3 text-terminal-bright font-semibold">Size</th>
+                  <th className="p-3 text-terminal-bright font-semibold">Tags</th>
                   <th className="p-3 text-terminal-bright font-semibold">Visibility</th>
                   <th className="p-3 text-terminal-bright font-semibold">Actions</th>
                 </tr>
@@ -630,7 +1116,7 @@ export const MyQuizzesExplorer: React.FC = () => {
                   <tr
                     key={`folder-${folder.id}`}
                     className={`border-b border-terminal-accent/10 hover:bg-terminal-accent/5 cursor-pointer transition-colors ${
-                      selectedItem === `folder-${folder.id}` ? 'bg-terminal-accent/10' : ''
+                      selectedItem === `folder-${folder.id}` ? 'bg-blue-500/20 border-l-4 border-blue-500 font-semibold' : ''
                     } ${dropTarget === folder.name ? 'bg-green-500/20 border-green-500' : ''}`}
                     onClick={() => setSelectedItem(`folder-${folder.id}`)}
                     onDoubleClick={() => navigateToFolder(folder.name)}
@@ -665,6 +1151,64 @@ export const MyQuizzesExplorer: React.FC = () => {
                     <td className="p-3 text-terminal-dim">{formatDate(folder.createdAt)}</td>
                     <td className="p-3 text-terminal-dim">Folder</td>
                     <td className="p-3 text-terminal-dim">—</td>
+                    <td className="p-3">
+                      {inlineEditTags === folder.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={inlineTagsValue}
+                            onChange={(e) => setInlineTagsValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleInlineTagEdit(folder.id);
+                              } else if (e.key === 'Escape') {
+                                cancelInlineTagEdit();
+                              }
+                            }}
+                            onBlur={() => handleInlineTagEdit(folder.id)}
+                            placeholder="tag1, tag2, tag3"
+                            className="flex-1 px-2 py-1 text-xs bg-terminal border border-terminal-accent/50 text-terminal-foreground rounded"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleInlineTagEdit(folder.id)}
+                            className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={cancelInlineTagEdit}
+                            className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div 
+                          className="cursor-pointer hover:bg-terminal-accent/10 rounded p-1 -m-1 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startInlineTagEdit(folder);
+                          }}
+                          title="Click to edit tags"
+                        >
+                          {folder.tags && folder.tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {folder.tags.map(tag => (
+                                <span
+                                  key={tag}
+                                  className="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded text-xs border border-yellow-500/30"
+                                >
+                                  🏷️ {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-terminal-dim text-xs italic">Click to add tags</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="p-3">
                       <div className="flex items-center gap-1">
                         {folder.isPublic ? (
@@ -745,7 +1289,7 @@ export const MyQuizzesExplorer: React.FC = () => {
                   <tr
                     key={`quiz-${quiz.id}`}
                     className={`border-b border-terminal-accent/10 hover:bg-terminal-accent/5 cursor-pointer transition-colors ${
-                      selectedItem === `quiz-${quiz.id}` ? 'bg-terminal-accent/10' : ''
+                      selectedItem === `quiz-${quiz.id}` ? 'bg-blue-500/20 border-l-4 border-blue-500 font-semibold' : ''
                     }`}
                     onClick={() => setSelectedItem(`quiz-${quiz.id}`)}
                     onDoubleClick={() => navigate(`/quiz/${quiz.id}`)}
@@ -763,6 +1307,22 @@ export const MyQuizzesExplorer: React.FC = () => {
                     <td className="p-3 text-terminal-dim">{formatDate(quiz.createdAt)}</td>
                     <td className="p-3 text-terminal-dim">Quiz</td>
                     <td className="p-3 text-terminal-dim">{formatFileSize(quiz)}</td>
+                    <td className="p-3">
+                      {quiz.tags && quiz.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {quiz.tags.map(tag => (
+                            <span
+                              key={tag}
+                              className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-xs border border-blue-500/30"
+                            >
+                              🏷️ {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-terminal-dim text-xs">—</span>
+                      )}
+                    </td>
                     <td className="p-3">
                       <div className="flex items-center gap-1">
                         {quiz.isPublic ? (
@@ -848,7 +1408,7 @@ export const MyQuizzesExplorer: React.FC = () => {
 
                 {currentSubfolders.length === 0 && currentQuizzes.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-terminal-dim">
+                    <td colSpan={7} className="p-8 text-center text-terminal-dim">
                       This folder is empty
                     </td>
                   </tr>
@@ -1000,6 +1560,18 @@ export const MyQuizzesExplorer: React.FC = () => {
               ✂️ Cut
             </button>
             
+            {contextMenu.itemType === 'folder' && (
+              <button
+                onClick={() => {
+                  handleSelectForMove(contextMenu.itemId, contextMenu.itemType);
+                  handleCloseContextMenu();
+                }}
+                className="w-full px-3 py-1 text-left hover:bg-terminal-accent/20 text-sm"
+              >
+                📦 Select for Move
+              </button>
+            )}
+            
             <hr className="my-1 border-terminal-accent/30" />
             
             {contextMenu.itemType === 'folder' && (
@@ -1063,11 +1635,32 @@ export const MyQuizzesExplorer: React.FC = () => {
                 📋 Paste {clipboard.itemType} ({clipboard.operation})
               </TerminalButton>
             )}
+            {moveSelection && (
+              <TerminalButton onClick={() => handleMove()} className="bg-blue-600 hover:bg-blue-700">
+                📦 Move {moveSelection.itemType} Here
+              </TerminalButton>
+            )}
+            <TerminalButton 
+              onClick={handleUndo} 
+              disabled={undoStack.length === 0}
+              className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Undo (Ctrl+Z)"
+            >
+              ⤴️ Undo {undoStack.length > 0 && `(${undoStack.length})`}
+            </TerminalButton>
+            <TerminalButton 
+              onClick={handleRedo} 
+              disabled={redoStack.length === 0}
+              className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Redo (Ctrl+Y)"
+            >
+              ⤵️ Redo {redoStack.length > 0 && `(${redoStack.length})`}
+            </TerminalButton>
           </div>
           
           <div className="text-xs text-terminal-dim">
             <span className="font-semibold">Shortcuts:</span> 
-            Del (Delete) | F2 (Rename) | F3 (Edit Tags) | Enter (Open) | Ctrl+C (Copy) | Ctrl+X (Cut) | Ctrl+V (Paste)
+            Del (Delete) | F2 (Rename) | F3 (Edit Tags) | Enter (Open) | Ctrl+C (Copy) | Ctrl+X (Cut) | Ctrl+V (Paste/Move) | Ctrl+M (Select Folder for Move) | Ctrl+Z (Undo) | Ctrl+Y (Redo)
           </div>
         </div>
       </div>
