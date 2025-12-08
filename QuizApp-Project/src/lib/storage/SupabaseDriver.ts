@@ -124,7 +124,8 @@ export class SupabaseDriver implements IStorageDriver {
       editMode: 'no_edits', // Simplified for new schema
       multiQuizSources: dbQuiz.multi_quiz_sources, // Map the database column
       questionLimit: dbQuiz.question_limit || dbQuiz.questionLimit || undefined, // Map from snake_case
-      imageSize: dbQuiz.image_size || dbQuiz.imageSize || 'medium' // Map from snake_case
+      imageSize: dbQuiz.image_size || dbQuiz.imageSize || 'medium', // Map from snake_case
+      tags: dbQuiz.tags || [] // Map tags from database
     };
   }
 
@@ -161,7 +162,8 @@ export class SupabaseDriver implements IStorageDriver {
       access_code: quiz.accessCode, // Map to snake_case
       multi_quiz_sources: quiz.multiQuizSources, // Map to database column name
       question_limit: quiz.questionLimit || null, // Map to snake_case
-      image_size: quiz.imageSize || 'medium' // Map to snake_case
+      image_size: quiz.imageSize || 'medium', // Map to snake_case
+      tags: quiz.tags || [] // Map tags to database
     };
   }
 
@@ -211,7 +213,8 @@ export class SupabaseDriver implements IStorageDriver {
       isPublic: Boolean(dbFolder.is_public ?? dbFolder.isPublic ?? false), // Explicit boolean conversion with proper null checking
       sharedWith: dbFolder.shared_with || dbFolder.sharedWith || [], // Map from snake_case
       accessCode: dbFolder.access_code || dbFolder.accessCode, // Map from snake_case
-      editMode: 'no_edits' // Simplified for minimal schema
+      editMode: 'no_edits', // Simplified for minimal schema
+      tags: dbFolder.tags || [] // Map tags from database
     };
   }
 
@@ -224,7 +227,8 @@ export class SupabaseDriver implements IStorageDriver {
       creator: folder.creator,
       is_public: folder.isPublic, // Map to snake_case
       shared_with: folder.sharedWith || [], // Map to snake_case
-      access_code: folder.accessCode // Map to snake_case
+      access_code: folder.accessCode, // Map to snake_case
+      tags: folder.tags || [] // Map tags to database
     };
   }
 

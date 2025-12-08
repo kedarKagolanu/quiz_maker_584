@@ -23,6 +23,7 @@ export interface QuizCreatorState {
   errorLine: number | null;
   errorColumn: number | null;
   validationErrors: ValidationError[];
+  tags: string[];
 }
 
 interface ValidationError {
@@ -48,6 +49,7 @@ export interface QuizCreatorActions {
   setJsonInput: (input: string) => void;
   setJsonError: (error: string) => void;
   setErrorLine: (line: number | null) => void;
+  setTags: (tags: string[]) => void;
   setErrorColumn: (column: number | null) => void;
   setValidationErrors: (errors: ValidationError[]) => void;
   addValidationError: (error: ValidationError) => void;
@@ -74,6 +76,7 @@ const initialState: QuizCreatorState = {
   errorLine: null,
   errorColumn: null,
   validationErrors: [],
+  tags: [],
 };
 
 export const useQuizCreator = () => {
@@ -129,6 +132,7 @@ export const useQuizCreator = () => {
   const setJsonError = useCallback((jsonError: string) => updateState({ jsonError }), [updateState]);
   const setErrorLine = useCallback((errorLine: number | null) => updateState({ errorLine }), [updateState]);
   const setErrorColumn = useCallback((errorColumn: number | null) => updateState({ errorColumn }), [updateState]);
+  const setTags = useCallback((tags: string[]) => updateState({ tags }), [updateState]);
   
   const setValidationErrors = useCallback((validationErrors: ValidationError[]) => 
     updateState({ validationErrors }), [updateState]);
@@ -192,6 +196,7 @@ export const useQuizCreator = () => {
     setJsonError,
     setErrorLine,
     setErrorColumn,
+    setTags,
     setValidationErrors,
     addValidationError,
     clearValidationErrors,

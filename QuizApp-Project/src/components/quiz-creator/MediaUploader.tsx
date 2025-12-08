@@ -25,17 +25,74 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingFileName, setUploadingFileName] = useState<string>('');
+  // Enhanced file validation with security checks
+  const validateFile = (file: File, expectedType: 'img' | 'audio'): { valid: boolean; error?: string } => {
+    // MIME type validation
+    const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    const allowedAudioTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/aac'];
+    
+    const allowedTypes = expectedType === 'img' ? allowedImageTypes : allowedAudioTypes;
+    
+    // Check MIME type
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      return { valid: false, error: `Invalid file type: ${file.type}. Allowed types: ${allowedTypes.join(', ')}` };
+    }
+    
+    // File size validation (50MB limit)
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+      return { valid: false, error: `File too large: ${(file.size / (1024 * 1024)).toFixed(2)}MB. Maximum allowed: 50MB` };
+    }
+    
+    // File name validation
+    if (file.name.length > 255) {
+      return { valid: false, error: 'File name too long (maximum 255 characters)' };
+    }
+    
+    // Check for suspicious file extensions
+    const suspiciousExtensions = ['.exe', '.scr', '.bat', '.cmd', '.com', '.pif', '.vbs', '.js', '.jar', '.php', '.asp'];
+    const fileName = file.name.toLowerCase();
+    for (const ext of suspiciousExtensions) {
+      if (fileName.includes(ext)) {
+        return { valid: false, error: `Potentially unsafe file extension detected: ${ext}` };
+      }
+    }
+    
+    return { valid: true };
+  };
+
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'img' | 'audio') => {
     const files = e.target.files;
     if (!files) return;
 
-    console.log(`Starting upload for ${files.length} ${type} file(s)`);
+    // Validate all files before processing
+    const invalidFiles: string[] = [];
+    const validFiles: File[] = [];
+    
+    Array.from(files).forEach(file => {
+      const validation = validateFile(file, type);
+      if (validation.valid) {
+        validFiles.push(file);
+      } else {
+        invalidFiles.push(`${file.name}: ${validation.error}`);
+      }
+    });
+    
+    // Show validation errors
+    if (invalidFiles.length > 0) {
+      toast.error(`File validation failed:\n${invalidFiles.join('\n')}`);
+      if (validFiles.length === 0) {
+        return; // No valid files to process
+      }
+    }
+
+    console.log(`Starting upload for ${validFiles.length} validated ${type} file(s)`);
     setIsUploading(true);
 
     let completedFiles = 0;
-    const totalFiles = files.length;
+    const totalFiles = validFiles.length;
 
-    Array.from(files).forEach((file, index) => {
+    validFiles.forEach((file, index) => {
       setUploadingFileName(file.name);
       console.log(`Processing file ${index + 1}:`, { 
         name: file.name, 

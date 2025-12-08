@@ -370,6 +370,22 @@ export const Dashboard: React.FC = () => {
                     <div className="text-sm text-terminal-dim">
                       {questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (multi-quiz)" : ""} • {quiz.isPublic ? "Public" : "Shared"}
                     </div>
+                    {/* Quiz Tags */}
+                    {quiz.tags && quiz.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {quiz.tags.slice(0, 3).map(tag => (
+                          <span
+                            key={tag}
+                            className="bg-terminal-accent/20 text-terminal-accent px-2 py-0 rounded text-xs border border-terminal-accent/30"
+                          >
+                            🏷️ {tag}
+                          </span>
+                        ))}
+                        {quiz.tags.length > 3 && (
+                          <span className="text-xs text-terminal-dim">+{quiz.tags.length - 3} more</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">

@@ -18,6 +18,7 @@ import { QuizSourceManager } from "@/components/quiz-creator/QuizSourceManager";
 import { RawJsonEditor } from "@/components/RawJsonEditor";
 import { ValidationErrorDisplay, ValidationErrors } from "@/components/ValidationErrorDisplay";
 import { LoadingButton } from '@/components/ui/loading-spinner';
+import { sanitizeQuizContent, sanitizeUserInput, sanitizeErrorMessage } from '@/lib/security';
 import { AIQuizGenerator } from '@/components/AIQuizGenerator';
 
 export const QuizCreator: React.FC = () => {
@@ -121,6 +122,7 @@ export const QuizCreator: React.FC = () => {
           quizActions.setEditMode(quiz.editMode || 'no_edits');
           quizActions.setCustomQuestionLimit(quiz.questionLimit || null);
           quizActions.setImageSize(quiz.imageSize || 'medium');
+          quizActions.setTags(quiz.tags || []);
           
           // Handle multi-quiz vs single quiz
           if (quiz.multiQuizSources) {
@@ -173,10 +175,11 @@ export const QuizCreator: React.FC = () => {
       return;
     }
 
-    // Validate title
-    const titleValidation = validateInput(quizTitleSchema, quizState.title);
+    // Sanitize and validate title
+    const sanitizedTitle = sanitizeUserInput(quizState.title);
+    const titleValidation = validateInput(quizTitleSchema, sanitizedTitle);
     if (titleValidation.success === false) {
-      toast.error(titleValidation.error);
+      toast.error(sanitizeErrorMessage(titleValidation.error));
       setIsCreating(false);
       return;
     }
@@ -413,6 +416,7 @@ export const QuizCreator: React.FC = () => {
             editMode: quizState.editMode,
             questionLimit: quizState.customQuestionLimit || undefined,
             imageSize: quizState.imageSize,
+            tags: quizState.tags || [],
             // Store multi-quiz metadata if this was generated from multiple sources
             multiQuizSources: multiQuizState.multiQuizMode ? {
               sources: multiQuizState.quizSources.map(s => ({
@@ -450,6 +454,7 @@ export const QuizCreator: React.FC = () => {
           editMode: quizState.editMode,
           questionLimit: quizState.customQuestionLimit || undefined,
           imageSize: quizState.imageSize,
+          tags: quizState.tags || [],
           // Store multi-quiz metadata if this was generated from multiple sources
           multiQuizSources: multiQuizState.multiQuizMode ? {
             sources: multiQuizState.quizSources.map(s => ({
@@ -936,6 +941,98 @@ export const QuizCreator: React.FC = () => {
                   );
                 })}
               </select>
+            </div>
+
+            {/* Tags Input */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span>Tags:</span>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {(quizState.tags || []).map((tag, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-1 bg-terminal-accent/20 text-terminal-accent px-2 py-1 rounded-md text-sm"
+                  >
+                    <span>🏷️ {tag}</span>
+                    <button
+                      onClick={() => {
+                        const newTags = (quizState.tags || []).filter((_, i) => i !== index);
+                        quizActions.setTags(newTags);
+                      }}
+                      className="text-red-400 hover:text-red-300 ml-1"
+                      title="Remove tag"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex gap-2">
+                <input
+                  ref={(ref) => { 
+                    if (ref) {
+                      (window as any).tagInputRef = ref; 
+                    }
+                  }}
+                  type="text"
+                  placeholder="Enter tags separated by commas: GATE, Computer Science, Easy..."
+                  className="bg-terminal border border-terminal-accent/30 text-terminal-foreground px-2 py-1 rounded flex-1"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const input = e.target as HTMLInputElement;
+                      const addTagsFromInput = () => {
+                        const value = input.value.trim();
+                        if (value) {
+                          // Split by comma and clean up each tag
+                          const newTagsToAdd = value
+                            .split(',')
+                            .map(tag => tag.trim())
+                            .filter(tag => tag.length > 0 && !(quizState.tags || []).includes(tag));
+                          
+                          if (newTagsToAdd.length > 0) {
+                            const updatedTags = [...(quizState.tags || []), ...newTagsToAdd];
+                            quizActions.setTags(updatedTags);
+                            input.value = '';
+                          }
+                        }
+                      };
+                      addTagsFromInput();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const input = (window as any).tagInputRef as HTMLInputElement;
+                    if (input) {
+                      const value = input.value.trim();
+                      if (value) {
+                        // Split by comma and clean up each tag
+                        const newTagsToAdd = value
+                          .split(',')
+                          .map(tag => tag.trim())
+                          .filter(tag => tag.length > 0 && !(quizState.tags || []).includes(tag));
+                        
+                        if (newTagsToAdd.length > 0) {
+                          const updatedTags = [...(quizState.tags || []), ...newTagsToAdd];
+                          quizActions.setTags(updatedTags);
+                          input.value = '';
+                        }
+                      }
+                    }
+                  }}
+                  className="bg-terminal-accent hover:bg-terminal-accent/80 text-terminal-background px-3 py-1 rounded text-sm font-medium"
+                >
+                  Add Tags
+                </button>
+              </div>
+              
+              <div className="text-xs text-terminal-dim">
+                💡 Separate multiple tags with commas. Suggested: GATE, Computer Science, Electronics, Mathematics, Easy, Medium, Hard, Previous Year
+              </div>
             </div>
 
             <div className="flex items-center gap-2">

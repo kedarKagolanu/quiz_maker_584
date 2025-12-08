@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
 import { Quiz, QuizFolder, QuizAttempt } from "@/types/quiz";
-import { FileText, Folder, Lock, Globe, Clock, User, Play, Filter, Settings } from "lucide-react";
+import { FileText, Folder, Lock, Globe, Clock, User, Play, Filter, Settings, Search, SortAsc, SortDesc, Tag, Calendar, Star } from "lucide-react";
 import { PageDescription } from "@/components/PageDescription";
 import { toast } from "sonner";
 import { useRecursiveQuestionCounts } from "@/hooks/useRecursiveQuestionCount";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 type FilterType = 'all' | 'public' | 'private' | 'my-quizzes' | 'attempted' | 'folder';
 
@@ -23,23 +26,187 @@ export const QuizBrowser: React.FC = () => {
   const [currentFolderPath, setCurrentFolderPath] = useState<string>("");
   const [folderContents, setFolderContents] = useState<{quizzes: Quiz[], subfolders: QuizFolder[]}>({quizzes: [], subfolders: []});
   const [loading, setLoading] = useState(true);
+
+  // Enhanced search and filtering state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<'date' | 'title' | 'popularity' | 'difficulty'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
   // Get recursive question counts for all quizzes
   const { questionCounts } = useRecursiveQuestionCounts(quizzes);
 
-  // Calculate folder quiz counts dynamically
+  // Calculate folder quiz counts dynamically (moved before useMemo to avoid initialization issues)
   const getFolderQuizCount = (folderPath: string, isRecursive: boolean = true): number => {
-    if (isRecursive) {
-      // Count all quizzes in this folder and its subfolders
-      return quizzes.filter(quiz => 
-        quiz.folderPath?.startsWith(folderPath + '/') || 
-        quiz.folderPath === folderPath
-      ).length;
-    } else {
-      // Count only direct quizzes in this folder
-      return quizzes.filter(quiz => quiz.folderPath === folderPath).length;
-    }
+    return quizzes.filter(quiz => {
+      if (!quiz.folderPath && !folderPath) return true;
+      if (!quiz.folderPath || !folderPath) return false;
+      
+      if (isRecursive) {
+        return quiz.folderPath === folderPath || quiz.folderPath.startsWith(folderPath + '/');
+      } else {
+        return quiz.folderPath === folderPath;
+      }
+    }).length;
   };
+
+  // Get all unique tags from quizzes and folders in current context
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    const contextQuizzes = activeFilter === 'folder' ? folderContents.quizzes : filteredQuizzes;
+    const contextFolders = activeFilter === 'folder' ? folderContents.subfolders : [];
+    
+    // Add tags from quizzes
+    contextQuizzes.forEach(quiz => {
+      if (quiz.tags) {
+        quiz.tags.forEach(tag => tagSet.add(tag));
+      }
+    });
+    
+    // Add tags from folders
+    contextFolders.forEach(folder => {
+      if (folder.tags) {
+        folder.tags.forEach(tag => tagSet.add(tag));
+      }
+    });
+    
+    return Array.from(tagSet).sort();
+  }, [folderContents.quizzes, folderContents.subfolders, filteredQuizzes, activeFilter]);
+
+  // Enhanced filtering and sorting logic for quizzes
+  const processedQuizzes = useMemo(() => {
+    let quizzesToProcess = activeFilter === 'folder' ? folderContents.quizzes : filteredQuizzes;
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      quizzesToProcess = quizzesToProcess.filter(quiz => 
+        quiz.title.toLowerCase().includes(query) ||
+        quiz.desc?.toLowerCase().includes(query) ||
+        quiz.tags?.some(tag => tag.toLowerCase().includes(query))
+      );
+    }
+
+    // Apply tag filters
+    if (selectedTags.length > 0) {
+      quizzesToProcess = quizzesToProcess.filter(quiz =>
+        quiz.tags?.some(tag => selectedTags.includes(tag))
+      );
+    }
+
+    // Apply difficulty filter (based on tags)
+    if (difficultyFilter !== 'all') {
+      quizzesToProcess = quizzesToProcess.filter(quiz =>
+        quiz.tags?.some(tag => tag.toLowerCase().includes(difficultyFilter.toLowerCase()))
+      );
+    }
+
+    // Apply sorting
+    quizzesToProcess = [...quizzesToProcess].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'title':
+          comparison = a.title.localeCompare(b.title);
+          break;
+        case 'date':
+          comparison = a.createdAt - b.createdAt;
+          break;
+        case 'popularity':
+          // Mock popularity based on question count for now
+          const aQuestions = questionCounts[a.id] || a.questions?.length || 0;
+          const bQuestions = questionCounts[b.id] || b.questions?.length || 0;
+          comparison = aQuestions - bQuestions;
+          break;
+        case 'difficulty':
+          // Difficulty based on tags (Easy < Medium < Hard)
+          const getDifficultyScore = (quiz: Quiz) => {
+            if (quiz.tags?.some(tag => tag.toLowerCase().includes('easy'))) return 1;
+            if (quiz.tags?.some(tag => tag.toLowerCase().includes('medium'))) return 2;
+            if (quiz.tags?.some(tag => tag.toLowerCase().includes('hard'))) return 3;
+            return 2; // Default to medium
+          };
+          comparison = getDifficultyScore(a) - getDifficultyScore(b);
+          break;
+        default:
+          comparison = a.createdAt - b.createdAt;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return quizzesToProcess;
+  }, [folderContents.quizzes, filteredQuizzes, activeFilter, searchQuery, selectedTags, difficultyFilter, sortBy, sortOrder, questionCounts]);
+
+  // Enhanced filtering logic for folders
+  const processedFolders = useMemo(() => {
+    // Get folders based on current mode
+    let foldersToProcess: QuizFolder[] = [];
+    
+    if (activeFilter === 'folder') {
+      // Folder browsing mode: show subfolders of current folder
+      foldersToProcess = folderContents.subfolders;
+    } else {
+      // All Available mode: show all accessible folders (public + user's own)
+      foldersToProcess = folders.filter(folder => 
+        folder.isPublic || folder.creator === user?.id
+      );
+    }
+    
+    // Apply search filter to folders
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      foldersToProcess = foldersToProcess.filter(folder => 
+        folder.name.toLowerCase().includes(query) ||
+        folder.tags?.some(tag => tag.toLowerCase().includes(query))
+      );
+    }
+
+    // Apply tag filters to folders
+    if (selectedTags.length > 0) {
+      foldersToProcess = foldersToProcess.filter(folder =>
+        folder.tags?.some(tag => selectedTags.includes(tag))
+      );
+    }
+
+    // Apply sorting to folders
+    foldersToProcess = [...foldersToProcess].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'title':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'date':
+          comparison = a.createdAt - b.createdAt;
+          break;
+        case 'popularity':
+          // Popularity based on folder content count
+          const aCount = getFolderQuizCount(a.name, false);
+          const bCount = getFolderQuizCount(b.name, false);
+          comparison = aCount - bCount;
+          break;
+        case 'difficulty':
+          // Difficulty based on tags
+          const getDifficultyScore = (folder: QuizFolder) => {
+            if (folder.tags?.some(tag => tag.toLowerCase().includes('easy'))) return 1;
+            if (folder.tags?.some(tag => tag.toLowerCase().includes('medium'))) return 2;
+            if (folder.tags?.some(tag => tag.toLowerCase().includes('hard'))) return 3;
+            return 2; // Default to medium
+          };
+          comparison = getDifficultyScore(a) - getDifficultyScore(b);
+          break;
+        default:
+          comparison = a.createdAt - b.createdAt;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return foldersToProcess;
+  }, [folderContents.subfolders, folders, activeFilter, searchQuery, selectedTags, sortBy, sortOrder, getFolderQuizCount, user?.id]);
 
   useEffect(() => {
     if (!user) {
@@ -219,12 +386,153 @@ export const QuizBrowser: React.FC = () => {
 
   return (
     <Terminal title="quiz browser">
-      <div className="space-y-6">
+      <div className="flex flex-col h-full">
         {/* Filter Controls */}
-        <div>
+        <div className="mb-4">
           <TerminalLine prefix="#" className="mb-3">Filter Quizzes</TerminalLine>
           
           <div className="ml-6 space-y-3">
+            {/* Search Bar */}
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-terminal-dim w-4 h-4" />
+                <Input
+                  placeholder="Search quizzes and folders by title, description, or tags..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 bg-terminal border-terminal-accent text-terminal-foreground"
+                />
+              </div>
+              <TerminalButton
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={showAdvancedFilters ? 'bg-terminal-accent/20' : ''}
+              >
+                <Filter className="w-4 h-4 mr-1" />
+                Filters
+              </TerminalButton>
+            </div>
+
+            {/* Advanced Filters */}
+            {showAdvancedFilters && (
+              <div className="border border-terminal-accent/20 rounded p-3 space-y-3 bg-terminal/50">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Sort By */}
+                  <div>
+                    <label className="text-xs text-terminal-dim mb-1 block">Sort By</label>
+                    <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                      <SelectTrigger className="bg-terminal border-terminal-accent text-terminal-foreground">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="date">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            Date Created
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="title">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Title (A-Z)
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="popularity">
+                          <div className="flex items-center gap-2">
+                            <Star className="w-4 h-4" />
+                            Popularity
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="difficulty">
+                          <div className="flex items-center gap-2">
+                            <Tag className="w-4 h-4" />
+                            Difficulty
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Sort Order */}
+                  <div>
+                    <label className="text-xs text-terminal-dim mb-1 block">Order</label>
+                    <Select value={sortOrder} onValueChange={(value: 'asc' | 'desc') => setSortOrder(value)}>
+                      <SelectTrigger className="bg-terminal border-terminal-accent text-terminal-foreground">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="desc">
+                          <div className="flex items-center gap-2">
+                            <SortDesc className="w-4 h-4" />
+                            Descending
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="asc">
+                          <div className="flex items-center gap-2">
+                            <SortAsc className="w-4 h-4" />
+                            Ascending
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Difficulty Filter */}
+                  <div>
+                    <label className="text-xs text-terminal-dim mb-1 block">Difficulty</label>
+                    <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
+                      <SelectTrigger className="bg-terminal border-terminal-accent text-terminal-foreground">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Difficulties</SelectItem>
+                        <SelectItem value="easy">Easy</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="hard">Hard</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Tag Filters */}
+                {availableTags.length > 0 && (
+                  <div>
+                    <label className="text-xs text-terminal-dim mb-2 block">Filter by Tags</label>
+                    <div className="flex flex-wrap gap-1">
+                      {availableTags.map(tag => (
+                        <Badge
+                          key={tag}
+                          variant={selectedTags.includes(tag) ? "default" : "outline"}
+                          className={`cursor-pointer text-xs ${
+                            selectedTags.includes(tag) 
+                              ? 'bg-terminal-accent text-terminal-background' 
+                              : 'hover:bg-terminal-accent/20'
+                          }`}
+                          onClick={() => {
+                            setSelectedTags(prev => 
+                              prev.includes(tag) 
+                                ? prev.filter(t => t !== tag)
+                                : [...prev, tag]
+                            );
+                          }}
+                        >
+                          <Tag className="w-3 h-3 mr-1" />
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                    {selectedTags.length > 0 && (
+                      <TerminalButton 
+                        onClick={() => setSelectedTags([])}
+                        className="mt-2 text-xs"
+                      >
+                        Clear Tag Filters
+                      </TerminalButton>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
               <TerminalButton
                 onClick={() => setActiveFilter('all')}
@@ -308,13 +616,24 @@ export const QuizBrowser: React.FC = () => {
 
         {/* Results */}
         <div>
-          <div className="flex items-center gap-3 mb-3">
-            <TerminalLine prefix="#">
-              {activeFilter === 'folder' ? 
-                `Browsing: ${currentFolderPath || 'Root'}` : 
-                `Results (${filteredQuizzes.length} quiz${filteredQuizzes.length !== 1 ? 'es' : ''})`
-              }
-            </TerminalLine>
+            <div className="flex items-center gap-3 mb-3">
+              <TerminalLine prefix="#">
+                {activeFilter === 'folder' ? 
+                  `Browsing: ${currentFolderPath || 'Root'}` : 
+                  `Results (${processedQuizzes.length} quiz${processedQuizzes.length !== 1 ? 'es' : ''})`
+                }
+              </TerminalLine>
+            
+            {/* Search and Filter Summary */}
+            {(searchQuery || selectedTags.length > 0 || difficultyFilter !== 'all') && (
+              <div className="text-sm text-terminal-dim ml-6">
+                {searchQuery && (
+                  <div>Search: "{searchQuery}" - Found {processedQuizzes.length} quiz{processedQuizzes.length !== 1 ? 'es' : ''} and {processedFolders.length} folder{processedFolders.length !== 1 ? 's' : ''}</div>
+                )}
+                {selectedTags.length > 0 && <div>Tags: {selectedTags.join(', ')}</div>}
+                {difficultyFilter !== 'all' && <div>Difficulty: {difficultyFilter}</div>}
+              </div>
+            )}
             
             {activeFilter === 'folder' && currentFolderPath && (
               <TerminalButton 
@@ -327,14 +646,19 @@ export const QuizBrowser: React.FC = () => {
           </div>
 
           <div className="ml-6 space-y-3">
-            {/* Show folders when browsing */}
-            {activeFilter === 'folder' && folderContents.subfolders.length > 0 && (
+            {/* Show folders */}
+            {processedFolders.length > 0 && (
               <div className="space-y-2">
                 <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2">
                   <Folder className="w-4 h-4" />
-                  Folders ({folderContents.subfolders.length})
+                  Folders ({processedFolders.length})
+                  {processedFolders.length !== folderContents.subfolders.length && (
+                    <span className="text-xs text-terminal-dim">
+                      of {folderContents.subfolders.length} total
+                    </span>
+                  )}
                 </div>
-                {folderContents.subfolders.map(folder => (
+                {processedFolders.map(folder => (
                   <div
                     key={folder.id}
                     onClick={() => handleFolderClick(folder)}
@@ -350,27 +674,60 @@ export const QuizBrowser: React.FC = () => {
                     {folder.description && (
                       <p className="text-terminal-foreground text-sm mt-1 ml-6">{folder.description}</p>
                     )}
+                    
+                    {/* Folder Tags */}
+                    {folder.tags && folder.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2 ml-6">
+                        {folder.tags.map(tag => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className="text-xs px-2 py-0 text-blue-400 border-blue-400/30 hover:bg-blue-400/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTags(prev => 
+                                prev.includes(tag) 
+                                  ? prev.filter(t => t !== tag)
+                                  : [...prev, tag]
+                              );
+                              setShowAdvancedFilters(true);
+                            }}
+                          >
+                            <Tag className="w-3 h-3 mr-1" />
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
 
             {/* Show quizzes */}
-            {filteredQuizzes.length > 0 && activeFilter === 'folder' && (
+            {processedQuizzes.length > 0 && (
               <div className="space-y-2">
                 <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2">
                   <FileText className="w-4 h-4" />
-                  Quizzes ({filteredQuizzes.length})
+                  Quizzes ({processedQuizzes.length})
+                  {processedQuizzes.length !== (activeFilter === 'folder' ? folderContents.quizzes.length : filteredQuizzes.length) && (
+                    <span className="text-xs text-terminal-dim">
+                      of {activeFilter === 'folder' ? folderContents.quizzes.length : filteredQuizzes.length} total
+                    </span>
+                  )}
                 </div>
               </div>
             )}
             
-            {filteredQuizzes.length === 0 && (activeFilter !== 'folder' || folderContents.subfolders.length === 0) ? (
+            {processedQuizzes.length === 0 ? (
               <TerminalLine prefix="-" className="text-terminal-dim">
-                No {activeFilter === 'folder' ? 'content' : 'quizzes'} found with current filter
+                {(searchQuery || selectedTags.length > 0 || difficultyFilter !== 'all') ? 
+                  'No quizzes match your search criteria' : 
+                  `No ${activeFilter === 'folder' ? 'content' : 'quizzes'} found with current filter`
+                }
               </TerminalLine>
             ) : (
-              filteredQuizzes.map(quiz => {
+              processedQuizzes.map(quiz => {
                 const stats = getQuizStats(quiz);
                 
                 return (
@@ -401,6 +758,31 @@ export const QuizBrowser: React.FC = () => {
                         
                         {quiz.desc && (
                           <p className="text-terminal-foreground text-sm mb-2">{quiz.desc}</p>
+                        )}
+                        
+                        {/* Quiz Tags */}
+                        {quiz.tags && quiz.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {quiz.tags.map(tag => (
+                              <Badge
+                                key={tag}
+                                variant="outline"
+                                className="text-xs px-2 py-0 text-terminal-accent border-terminal-accent/30 hover:bg-terminal-accent/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTags(prev => 
+                                    prev.includes(tag) 
+                                      ? prev.filter(t => t !== tag)
+                                      : [...prev, tag]
+                                  );
+                                  setShowAdvancedFilters(true);
+                                }}
+                              >
+                                <Tag className="w-3 h-3 mr-1" />
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
                         )}
                         
                         <div className="flex flex-wrap gap-4 text-xs text-terminal-dim">

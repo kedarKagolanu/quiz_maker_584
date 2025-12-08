@@ -39,6 +39,9 @@ const injectThemeStyles = (preset: string, mode: string, gradientEnabled: boolea
           hsl(${colors.bright} / ${mode === 'dark' ? '0.08' : '0.20'}) 70%,
           hsl(${colors.background}) 100%) !important;
         background-attachment: fixed !important;
+        background-repeat: no-repeat !important;
+        background-size: 100% 100% !important;
+        background-position: center center !important;
         box-shadow: inset 0 0 200px rgba(${mode === 'dark' ? '0,0,0' : '255,255,255'},${mode === 'dark' ? '0.2' : '0.3'}) !important;
       ` : ''}
     }

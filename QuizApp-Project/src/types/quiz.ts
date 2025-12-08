@@ -116,6 +116,9 @@ export interface Quiz {
   /** Default image size for all images in this quiz */
   imageSize?: 'small' | 'medium' | 'large' | 'xlarge';
   
+  /** Array of tags for categorization and search (e.g., ["GATE", "Computer Science", "Easy"]) */
+  tags?: string[];
+  
   /** 
    * Multi-quiz composition configuration
    * Allows combining questions from multiple source quizzes
@@ -170,6 +173,7 @@ export interface QuizFolder {
   totalQuizzes?: number; // computed: total quizzes in this folder and subfolders
   directQuizzes?: number; // computed: quizzes directly in this folder
   totalFolders?: number; // computed: total subfolders count
+  tags?: string[]; // array of tags for folder categorization and search
 }
 
 export interface QuizPermission {
