@@ -646,8 +646,8 @@ export const QuizBrowser: React.FC = () => {
           </div>
 
           <div className="ml-6 space-y-3">
-            {/* Show folders */}
-            {processedFolders.length > 0 && (
+            {/* Show folders (moved below quizzes) */}
+            {false && processedFolders.length > 0 && (
               <div className="space-y-2">
                 <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2">
                   <Folder className="w-4 h-4" />
@@ -719,124 +719,43 @@ export const QuizBrowser: React.FC = () => {
               </div>
             )}
             
+            {/* Quizzes first */}
             {processedQuizzes.length === 0 ? (
-              <TerminalLine prefix="-" className="text-terminal-dim">
-                {(searchQuery || selectedTags.length > 0 || difficultyFilter !== 'all') ? 
-                  'No quizzes match your search criteria' : 
-                  `No ${activeFilter === 'folder' ? 'content' : 'quizzes'} found with current filter`
-                }
-              </TerminalLine>
+              <></>
             ) : (
               processedQuizzes.map(quiz => {
                 const stats = getQuizStats(quiz);
-                
                 return (
-                  <div
-                    key={quiz.id}
-                    onClick={() => handleQuizClick(quiz, false)}
-                    className="p-4 border border-terminal-accent/30 rounded cursor-pointer hover:border-terminal-accent/60 transition-colors"
-                  >
+                  <div key={quiz.id} onClick={() => handleQuizClick(quiz, false)} className="p-4 border border-terminal-accent/30 rounded cursor-pointer hover:border-terminal-accent/60 transition-colors">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <FileText className="w-4 h-4 text-terminal-accent" />
                           <span className="text-terminal-bright font-semibold">{quiz.title}</span>
-                          
-                          {/* Quiz Status Icons */}
-                          <div className="flex gap-1">
-                            {quiz.isPublic ? (
-                              <Globe className="w-4 h-4 text-terminal-dim" title="Public Quiz" />
-                            ) : (
-                              <Lock className="w-4 h-4 text-terminal-dim" title="Private Quiz" />
-                            )}
-                            
-                            {stats.isCreator && (
-                              <User className="w-4 h-4 text-terminal-accent" title="Your Quiz" />
-                            )}
-                          </div>
                         </div>
-                        
-                        {quiz.desc && (
-                          <p className="text-terminal-foreground text-sm mb-2">{quiz.desc}</p>
-                        )}
-                        
-                        {/* Quiz Tags */}
-                        {quiz.tags && quiz.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-2">
-                            {quiz.tags.map(tag => (
-                              <Badge
-                                key={tag}
-                                variant="outline"
-                                className="text-xs px-2 py-0 text-terminal-accent border-terminal-accent/30 hover:bg-terminal-accent/10"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedTags(prev => 
-                                    prev.includes(tag) 
-                                      ? prev.filter(t => t !== tag)
-                                      : [...prev, tag]
-                                  );
-                                  setShowAdvancedFilters(true);
-                                }}
-                              >
-                                <Tag className="w-3 h-3 mr-1" />
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        
-                        <div className="flex flex-wrap gap-4 text-xs text-terminal-dim">
-                          <span>{questionCounts.get(quiz.id) || quiz.questions?.length || 0} questions{quiz.multiQuizSources ? " (including sources)" : ""}</span>
-                          
-                          {quiz.timeLimit && (
-                            <span>
-                              <Clock className="w-3 h-3 inline mr-1" />
-                              {formatTime(quiz.timeLimit)}
-                            </span>
-                          )}
-                          
-                          {quiz.folderPath && (
-                            <span>
-                              <Folder className="w-3 h-3 inline mr-1" />
-                              {quiz.folderPath}
-                            </span>
-                          )}
-                          
-                          {stats.attempts > 0 && (
-                            <span className="text-terminal-accent">
-                              Attempted {stats.attempts} time{stats.attempts !== 1 ? 's' : ''}
-                              {stats.bestScore !== null && ` • Best: ${stats.bestScore}%`}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <TerminalButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleQuizClick(quiz, false);
-                          }}
-                          className="text-xs"
-                        >
-                          <Play className="w-3 h-3 mr-1" />
-                          Quick Start
-                        </TerminalButton>
-                        <TerminalButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleQuizClick(quiz, true);
-                          }}
-                          className="text-xs bg-terminal-accent/20 hover:bg-terminal-accent/30"
-                        >
-                          <Settings className="w-3 h-3 mr-1" />
-                          Customize & Start
-                        </TerminalButton>
                       </div>
                     </div>
                   </div>
                 );
               })
+            )}
+
+            {/* Then folders */}
+            {processedFolders.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2">
+                  <Folder className="w-4 h-4" />
+                  Folders ({processedFolders.length})
+                </div>
+                {processedFolders.map(folder => (
+                  <div key={folder.id} onClick={() => handleFolderClick(folder)} className="p-3 border border-blue-500/30 rounded cursor-pointer hover:border-blue-500/60 transition-colors bg-blue-500/5">
+                    <div className="flex items-center gap-2">
+                      <Folder className="w-4 h-4 text-blue-400" />
+                      <span className="text-terminal-bright font-semibold">{folder.name}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
