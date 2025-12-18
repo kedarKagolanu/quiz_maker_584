@@ -27,6 +27,31 @@ export const QuizCreator: React.FC = () => {
   const [searchParams] = useSearchParams();
   const editQuizId = searchParams.get("edit");
   const folderParam = searchParams.get("folder");
+  const fromPage = searchParams.get("from");
+  const returnPath = searchParams.get("path");
+  const browseFolder = searchParams.get("folder");
+  const browseFilter = searchParams.get("filter");
+  const expanded = searchParams.get("expanded");
+
+  const getReturnUrl = () => {
+    if (fromPage === "/my-quizzes") {
+      return `/my-quizzes${returnPath ? `?path=${encodeURIComponent(returnPath)}` : ''}`;
+    }
+    if (fromPage === "/browse-quizzes") {
+      const qp = new URLSearchParams();
+      if (browseFilter) qp.set('filter', browseFilter);
+      if (browseFolder) qp.set('folder', browseFolder);
+      const qs = qp.toString();
+      return `/browse-quizzes${qs ? `?${qs}` : ''}`;
+    }
+    if (fromPage === "/dashboard") {
+      const qp = new URLSearchParams();
+      if (expanded) qp.set('expanded', expanded);
+      const qs = qp.toString();
+      return `/dashboard${qs ? `?${qs}` : ''}`;
+    }
+    return "/dashboard";
+  };
   
   // Debug the URL and parameters immediately
   console.log('🔍 QuizCreator mounted with URL:', window.location.href);
@@ -434,7 +459,7 @@ export const QuizCreator: React.FC = () => {
           console.log('Updating quiz with media size:', JSON.stringify(updatedQuiz.media).length, 'bytes');
           await storage.updateQuiz(updatedQuiz);
           toast.success("Quiz updated successfully!");
-          navigate("/my-quizzes");
+          navigate(getReturnUrl());
         }
       } else {
         const quiz: Quiz = {
@@ -496,7 +521,7 @@ export const QuizCreator: React.FC = () => {
         } else {
           toast.success("Quiz created successfully!");
         }
-        navigate("/dashboard");
+        navigate(getReturnUrl());
       }
     } catch (error: any) {
       console.error('Error creating/updating quiz:', error);

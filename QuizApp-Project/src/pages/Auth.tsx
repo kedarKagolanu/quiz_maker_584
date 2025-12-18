@@ -12,7 +12,7 @@ export const Auth: React.FC = () => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
-  const { login, signup, resetPassword, user } = useAuth();
+  const { login, signup, resetPassword, signInWithProvider, user } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if already logged in
@@ -225,6 +225,21 @@ export const Auth: React.FC = () => {
           </div>
         </form>
       )}
+
+     <div className="mt-6 border-t border-terminal-accent/30 pt-4">
+       <div className="mb-2 text-xs text-yellow-400/90">
+         Already have an account with email? Sign in first, then link Google from your Profile to avoid duplicate accounts.
+       </div>
+       <TerminalLine prefix="~">or continue with Google</TerminalLine>
+       <div className="flex flex-wrap gap-2 mt-2">
+         <TerminalButton type="button" onClick={async () => {
+           const res = await signInWithProvider('google');
+           if (!res.success && res.error) {
+             toast.error(res.error);
+           }
+         }}>continue with google</TerminalButton>
+       </div>
+     </div>
     </Terminal>
   );
 };

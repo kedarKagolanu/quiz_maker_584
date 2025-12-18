@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton, TerminalInput } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
@@ -18,6 +18,7 @@ export const MyQuizzesExplorer: React.FC = () => {
   const navigate = useNavigate();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [folders, setFolders] = useState<QuizFolder[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentPath, setCurrentPath] = useState<string>("");
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -82,8 +83,22 @@ export const MyQuizzesExplorer: React.FC = () => {
       navigate("/");
       return;
     }
+    // Initialize from URL on first mount
+    const initialPath = searchParams.get('path') || '';
+    setCurrentPath(initialPath);
     loadData();
-  }, [user, navigate, currentPath]);
+  }, [user, navigate]);
+
+  // Keep URL in sync with currentPath
+  useEffect(() => {
+    const urlPath = searchParams.get('path') || '';
+    if ((currentPath || '') !== urlPath) {
+      const next = new URLSearchParams(searchParams);
+      if (currentPath) next.set('path', currentPath); else next.delete('path');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPath]);
 
   const loadData = async () => {
     console.log('🔄 Loading data...');
@@ -969,7 +984,7 @@ export const MyQuizzesExplorer: React.FC = () => {
               <FolderPlus className="w-4 h-4" />
               New Folder
             </TerminalButton>
-            <TerminalButton onClick={() => navigate("/create")} className="flex items-center gap-2">
+            <TerminalButton onClick={() => navigate(`/create?from=/my-quizzes&path=${encodeURIComponent(currentPath)}`)} className="flex items-center gap-2">
               <FilePlus className="w-4 h-4" />
               New Quiz
             </TerminalButton>
@@ -1292,7 +1307,7 @@ export const MyQuizzesExplorer: React.FC = () => {
                       selectedItem === `quiz-${quiz.id}` ? 'bg-blue-500/20 border-l-4 border-blue-500 font-semibold' : ''
                     }`}
                     onClick={() => setSelectedItem(`quiz-${quiz.id}`)}
-                    onDoubleClick={() => navigate(`/quiz/${quiz.id}`)}
+                    onDoubleClick={() => navigate(`/quiz/${quiz.id}?from=/my-quizzes&path=${encodeURIComponent(currentPath)}`)}
                     draggable
                     onDragStart={(e) => handleDragStart(e, quiz.id, 'quiz')}
                     onDragEnd={handleDragEnd}
@@ -1364,7 +1379,7 @@ export const MyQuizzesExplorer: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/create?edit=${quiz.id}`);
+                            navigate(`/create?edit=${quiz.id}&from=/my-quizzes&path=${encodeURIComponent(currentPath)}`);
                           }}
                           className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
                           title="Edit"
@@ -1374,7 +1389,7 @@ export const MyQuizzesExplorer: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/quiz-permissions/${quiz.id}`);
+                            navigate(`/quiz-permissions/${quiz.id}?from=/my-quizzes&path=${encodeURIComponent(currentPath)}`);
                           }}
                           className="p-1 hover:bg-terminal-accent/20 rounded transition-colors"
                           title="Manage Permissions"

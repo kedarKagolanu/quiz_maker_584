@@ -811,7 +811,8 @@ export const QuizTaker: React.FC = () => {
     
     soundEffects.quizComplete();
     toast.success(`Quiz completed! Score: ${scorePercentage.toFixed(1)}%`);
-    navigate(`/results/${attempt.id}`);
+    const passthrough = location.search ? `${location.search}` : '';
+    navigate(`/results/${attempt.id}${passthrough}`);
   };
 
   if (!quiz || questions.length === 0) {
@@ -1201,6 +1202,12 @@ export const QuizTaker: React.FC = () => {
                 🛑 end test
               </TerminalButton>
             </div>
+
+            {/* Compact page indicator */}
+            <div className="text-xs text-terminal-dim select-none">
+              {currentIndex + 1} / {questions.length}
+            </div>
+
             <TerminalButton 
               onClick={handleNext}
               disabled={false}

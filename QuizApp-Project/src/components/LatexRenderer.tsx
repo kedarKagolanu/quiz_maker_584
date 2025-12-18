@@ -12,6 +12,15 @@ interface LatexRendererProps {
   imageSize?: 'small' | 'medium' | 'large' | 'xlarge';
 }
 
+// Replace special placeholders with real code-fence markers
+function normalizeCodePlaceholders(src: string): string {
+  return src
+    .replace(/###BLOCK_CODE_START###/g, '```')
+    .replace(/###BLOCK_CODE_END###/g, '```')
+    .replace(/###INLINE_CODE_START###/g, '`')
+    .replace(/###INLINE_CODE_END###/g, '`');
+}
+
 // Function to process special characters ONLY outside of LaTeX and media tags
 const processSpecialCharacters = (text: string): string => {
   // Split by LaTeX and media tags to avoid corrupting them
@@ -19,12 +28,12 @@ const processSpecialCharacters = (text: string): string => {
   
   return parts.map(part => {
     // Skip processing if this is a LaTeX expression - but ALLOW media tags to be processed
-    if (part.match(/^\$.*\$$/)) {
+    if (/^\$.*\$$/.test(part)) {
       return part;
     }
     
     // Allow media tags [img:X] and [audio:X] to be processed, but preserve other bracket content
-    if (part.match(/^\[[^\]]*\]$/) && !part.match(/^\[(img|audio):\d+\]$/)) {
+    if (/^\[[^\]]*\]$/.test(part) && !/^\[(img|audio):\d+\]$/.test(part)) {
       return part;
     }
     
@@ -44,7 +53,6 @@ const processSpecialCharacters = (text: string): string => {
       
       // BOLD + ITALIC COMBINATIONS (process these BEFORE individual bold/italic)
       .replace(/\*\*\*([^*$]+)\*\*\*/g, '<strong><em>$1</em></strong>') // ***text*** = bold+italic
-      .replace(/\*\*\*([^*$]+)\*\*\*/g, '<strong><em>$1</em></strong>') // ***text*** = bold+italic
       .replace(/___([^_$]+)___/g, '<strong><em>$1</em></strong>')         // ___text___ = bold+italic
       
       // INDIVIDUAL FORMATTING
@@ -52,12 +60,6 @@ const processSpecialCharacters = (text: string): string => {
       .replace(/\*([^*$]+)\*/g, '<em>$1</em>')             // *text* = italic
       .replace(/__([^_$]+)__/g, '<strong>$1</strong>')     // __text__ = bold
       .replace(/_([^_$]+)_/g, '<em>$1</em>')               // _text_ = italic
-      
-      // CODE FORMATTING - Handle all backtick patterns (process longer patterns first)
-      // Handle multiline code blocks properly, including those after \n
-      .replace(/````\s*\n?([^]*?)````/g, '###BLOCK_CODE_START###$1###BLOCK_CODE_END###')  // Quadruple backticks
-      .replace(/```\s*([a-z]*)\s*\n?([^]*?)```/g, '###BLOCK_CODE_START###$2###BLOCK_CODE_END###')  // Triple backticks with optional language
-      .replace(/`([^`\n]+?)`/g, '###INLINE_CODE_START###$1###INLINE_CODE_END###')       // Single backticks (inline only)
       
       // GREEK LETTERS (only if not in LaTeX context)
       .replace(/\\alpha(?![a-zA-Z])/g, 'α')
@@ -83,6 +85,94 @@ const processSpecialCharacters = (text: string): string => {
   }).join('');
 };
 
+// Tokenizer to split text into text, inline code, and fenced block code (```lang optionalSameLineCode) segments
+function tokenizeCodeAndText(input: string): Array<{ type: 'text' | 'block' | 'inline'; lang?: string; content: string }> {
+  const segments: Array<{ type: 'text' | 'block' | 'inline'; lang?: string; content: string }> = [];
+  let i = 0;
+  let textBuffer = '';
+
+  const pushText = (t: string) => {
+    if (!t) return;
+    segments.push({ type: 'text', content: t });
+  };
+
+  const tryFence = (src: string, idx: number) => {
+    if (!src.startsWith('```', idx)) return null;
+
+    // parse header to end of line (lang + optional same-line code)
+    let j = idx + 3;
+    let header = '';
+    while (j < src.length && src[j] !== '\n') {
+      header += src[j];
+      j++;
+    }
+    if (j < src.length && src[j] === '\n') j++;
+
+    header = header.trim();
+    let lang = '';
+    let sameLineCode = '';
+    if (header.length > 0) {
+      const parts = header.split(/\s+/);
+      if (parts.length > 0) {
+        lang = parts[0].toLowerCase();
+        if (parts.length > 1) {
+          sameLineCode = header.slice(parts[0].length).trim();
+        }
+      }
+    }
+
+    const closeIdx = src.indexOf('```', j);
+    if (closeIdx === -1) {
+      return { consumed: 0, seg: null };
+    }
+
+    let codeBody = src.slice(j, closeIdx);
+    if (sameLineCode) codeBody = sameLineCode + '\n' + codeBody;
+    codeBody = codeBody.replace(/^\n+/, '');
+
+    return {
+      consumed: closeIdx + 3 - idx,
+      seg: { type: 'block' as const, lang, content: codeBody }
+    };
+  };
+
+  const tryInline = (src: string, idx: number) => {
+    if (src[idx] !== '`') return null;
+    let j = idx + 1;
+    while (j < src.length && src[j] !== '`') j++;
+    if (j >= src.length) return null;
+    const content = src.slice(idx + 1, j);
+    return {
+      consumed: j + 1 - idx,
+      seg: { type: 'inline' as const, content }
+    };
+  };
+
+  while (i < input.length) {
+    const fence = tryFence(input, i);
+    if (fence && fence.consumed > 0 && fence.seg) {
+      if (textBuffer) { pushText(textBuffer); textBuffer = ''; }
+      segments.push(fence.seg);
+      i += fence.consumed;
+      continue;
+    }
+
+    const inline = tryInline(input, i);
+    if (inline && inline.consumed > 0 && inline.seg) {
+      if (textBuffer) { pushText(textBuffer); textBuffer = ''; }
+      segments.push(inline.seg);
+      i += inline.consumed;
+      continue;
+    }
+
+    textBuffer += input[i];
+    i++;
+  }
+
+  if (textBuffer) pushText(textBuffer);
+  return segments;
+}
+
 export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, imageSize = 'medium' }) => {
   const renderLatex = (input: string | React.ReactNode) => {
     if (typeof input !== 'string') return input;
@@ -90,7 +180,7 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
     const regex = /\$([^$]+)\$/g;
-    let match;
+    let match: RegExpExecArray | null;
 
     while ((match = regex.exec(input)) !== null) {
       // Add text before LaTeX
@@ -108,8 +198,6 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
         });
         // Sanitize HTML output to prevent XSS attacks
         const sanitizedHtml = DOMPurify.sanitize(html, {
-          ALLOWED_TAGS: ['span', 'mrow', 'mi', 'mn', 'mo', 'mfrac', 'msup', 'msub', 'msubsup', 'mover', 'munder', 'munderover', 'mtable', 'mtr', 'mtd', 'math'],
-          ALLOWED_ATTR: ['class', 'style', 'mathvariant', 'mathsize', 'mathcolor', 'mathbackground'],
           KEEP_CONTENT: true
         });
         parts.push(
@@ -119,7 +207,7 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
             className="inline-block"
           />
         );
-      } catch (error) {
+      } catch {
         parts.push(<span key={match.index} className="text-red-500">{match[0]}</span>);
       }
 
@@ -135,164 +223,100 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
   };
 
   try {
-    // Validate and convert input text
-    if (!text) {
+    const useNewFence = String(import.meta.env.VITE_ENABLE_NEW_CODE_FENCE || 'true') === 'true';
 
+    // Validate and normalize input text
+    if (!text) {
       return <span className="text-yellow-500">[No content]</span>;
     }
-    
     if (typeof text !== 'string') {
-
-      // Try to convert to string if possible
-      const convertedText = String(text);
-      if (convertedText === '[object Object]') {
-
+      const converted = String(text);
+      if (converted === '[object Object]') {
         return <span className="text-red-500">[Invalid content type: {typeof text}]</span>;
       }
-      // Use the converted text
-      text = convertedText;
+      text = converted;
     }
 
-    // CORRECT ORDER: First media tags, THEN special characters, THEN LaTeX
+    // Normalize our custom placeholders to real code-fence markers
+    text = normalizeCodePlaceholders(text);
+
+    // 1) Replace media tags with React elements/placeholders
     const mediaProcessed = renderMediaTags(text, media || [], imageSize);
-    const final: React.ReactNode[] = [];
-    
-    mediaProcessed.forEach((part, idx) => {
-      try {
-        if (typeof part === 'string') {
-          // First process special characters, THEN LaTeX
-          const specialCharsProcessed = processSpecialCharacters(part);
-          const latexProcessed = renderLatex(specialCharsProcessed);
-          
-          if (Array.isArray(latexProcessed)) {
-            latexProcessed.forEach((item, itemIdx) => {
-              if (item !== null && item !== undefined) {
-                if (React.isValidElement(item)) {
-                  final.push(React.cloneElement(item, { key: `latex-${idx}-${itemIdx}` }));
-                } else {
-                  // Handle HTML content properly with sanitization
-                  const itemStr = String(item);
-                  if (itemStr.includes('<br>') || itemStr.includes('<strong>') || itemStr.includes('<em>')) {
-                    const sanitizedHtml = DOMPurify.sanitize(itemStr, {
-                      ALLOWED_TAGS: ['br', 'strong', 'em', 'b', 'i', 'span', 'code'],
-                      ALLOWED_ATTR: ['class', 'style'],
-                      KEEP_CONTENT: true
-                    });
-                    final.push(<span key={`html-${idx}-${itemIdx}`} dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />);
-                  } else if (itemStr.includes('###BLOCK_CODE_START###')) {
-                    // Handle BLOCK code (``` or ````) 
-                    const codeParts = itemStr.split(/(###BLOCK_CODE_START###[^#]*###BLOCK_CODE_END###)/);
-                    final.push(
-                      <span key={`block-code-${idx}-${itemIdx}`}>
-                        {codeParts.map((codePart, codeIdx) => {
-                          if (codePart.includes('###BLOCK_CODE_START###')) {
-                            const codeText = codePart.replace(/###BLOCK_CODE_START###|###BLOCK_CODE_END###/g, '');
-                            return (
-                              <div key={`block-code-wrapper-${codeIdx}`} style={{ display: 'block', width: '100%' }}>
-                                <pre style={{ 
-                                  background: 'rgba(0,0,0,0.1)', 
-                                  padding: '12px', 
-                                  borderRadius: '6px', 
-                                  fontFamily: 'monospace',
-                                  whiteSpace: 'pre-wrap',
-                                  overflow: 'auto',
-                                  border: '1px solid rgba(0,0,0,0.2)',
-                                  margin: '8px 0',
-                                  display: 'block',
-                                  width: '100%'
-                                }}>
-                                  <code style={{ 
-                                    color: '#60a5fa',
-                                    background: 'transparent'
-                                  }}>
-                                    {codeText}
-                                  </code>
-                                </pre>
-                              </div>
-                            );
-                          }
-                          return codePart;
-                        })}
-                      </span>
-                    );
-                  } else if (itemStr.includes('###INLINE_CODE_START###')) {
-                    // Handle INLINE code (`) - existing logic but renamed
-                    const codeParts = itemStr.split(/(###INLINE_CODE_START###[^#]*###INLINE_CODE_END###)/);
-                    final.push(
-                      <span key={`inline-code-${idx}-${itemIdx}`}>
-                        {codeParts.map((codePart, codeIdx) => {
-                          if (codePart.includes('###INLINE_CODE_START###')) {
-                            const codeText = codePart.replace(/###INLINE_CODE_START###|###INLINE_CODE_END###/g, '');
-                            return (
-                              <code 
-                                key={`inline-code-inner-${codeIdx}`}
-                                style={{ 
-                                  background: 'rgba(0,0,0,0.2)', 
-                                  padding: '2px 4px', 
-                                  borderRadius: '3px', 
-                                  fontFamily: 'monospace', 
-                                  color: '#60a5fa' 
-                                }}
-                              >
-                                {codeText}
-                              </code>
-                            );
-                          }
-                          return codePart;
-                        })}
-                      </span>
-                    );
-                  } else {
-                    // Regular text - check for any remaining code markers that weren't processed
-                    if (itemStr.includes('###') && (itemStr.includes('CODE_START') || itemStr.includes('CODE_END'))) {
-                      // Clean up any leftover markers
-                      const cleanedText = itemStr.replace(/###[A-Z_]+###/g, '');
-                      if (cleanedText.trim()) {
-                        final.push(<span key={`text-${idx}-${itemIdx}`}>{cleanedText}</span>);
-                      }
-                    } else {
-                      // Regular text
-                      final.push(<span key={`text-${idx}-${itemIdx}`}>{itemStr}</span>);
-                    }
-                  }
-                }
-              }
-            });
-          } else if (latexProcessed !== null && latexProcessed !== undefined) {
-            if (React.isValidElement(latexProcessed)) {
-              final.push(React.cloneElement(latexProcessed, { key: `latex-single-${idx}` }));
-            } else {
-              const processedStr = String(latexProcessed);
-              if (processedStr.includes('<br>') || processedStr.includes('<strong>') || processedStr.includes('<em>') || processedStr.includes('<code>')) {
-                const sanitizedHtml = DOMPurify.sanitize(processedStr, {
-                  ALLOWED_TAGS: ['br', 'strong', 'em', 'b', 'i', 'span', 'code'],
-                  ALLOWED_ATTR: ['class', 'style'],
-                  KEEP_CONTENT: true
-                });
-                final.push(<span key={`html-single-${idx}`} dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />);
-              } else {
-                final.push(<span key={`text-single-${idx}`}>{processedStr}</span>);
-              }
+
+    // 2) For string parts, optionally tokenize code fences/inline, then process special chars and LaTeX
+    const out: React.ReactNode[] = [];
+
+    mediaProcessed.forEach((part, pIdx) => {
+      if (React.isValidElement(part)) {
+        out.push(React.cloneElement(part, { key: `media-${pIdx}` }));
+        return;
+      }
+
+      const str = String(part ?? '');
+
+      if (useNewFence) {
+        const segs = tokenizeCodeAndText(str);
+        segs.forEach((seg, sIdx) => {
+          if (seg.type === 'block') {
+            const safe = DOMPurify.sanitize(seg.content, { KEEP_CONTENT: true });
+            out.push(
+              <pre key={`blk-${pIdx}-${sIdx}`} style={{ whiteSpace: 'pre-wrap', overflowX: 'auto' }} className="rounded border border-terminal-accent/30 bg-terminal-accent/10 p-3 my-2">
+                <code className={seg.lang ? `language-${seg.lang}` : undefined}>{safe}</code>
+              </pre>
+            );
+          } else if (seg.type === 'inline') {
+            const safe = DOMPurify.sanitize(seg.content, { KEEP_CONTENT: true });
+            out.push(
+              <code key={`inl-${pIdx}-${sIdx}`} className="px-1 py-0.5 rounded bg-terminal-accent/10 border border-terminal-accent/30">
+                {safe}
+              </code>
+            );
+          } else {
+            const processed = processSpecialCharacters(seg.content);
+            const latexNodes = renderLatex(processed);
+            if (Array.isArray(latexNodes)) {
+              latexNodes.forEach((node, nIdx) => {
+                if (node == null) return;
+                out.push(
+                  React.isValidElement(node)
+                    ? React.cloneElement(node, { key: `ln-${pIdx}-${sIdx}-${nIdx}` })
+                    : <span key={`ln-${pIdx}-${sIdx}-${nIdx}`}>{String(node)}</span>
+                );
+              });
+            } else if (latexNodes != null) {
+              out.push(
+                React.isValidElement(latexNodes)
+                  ? React.cloneElement(latexNodes, { key: `ln-${pIdx}-${sIdx}` })
+                  : <span key={`ln-${pIdx}-${sIdx}`}>{String(latexNodes)}</span>
+              );
             }
           }
-        } else if (part && React.isValidElement(part)) {
-          // Valid React element from media processing
-          final.push(React.cloneElement(part, { key: `media-${idx}` }));
-        } else if (part !== null && part !== undefined) {
-          // Convert other types to string
-          final.push(<span key={`fallback-${idx}`}>{String(part)}</span>);
+        });
+      } else {
+        const processed = processSpecialCharacters(str);
+        const latexNodes = renderLatex(processed);
+        if (Array.isArray(latexNodes)) {
+          latexNodes.forEach((node, nIdx) => {
+            if (node == null) return;
+            out.push(
+              React.isValidElement(node)
+                ? React.cloneElement(node, { key: `ln-${pIdx}-${nIdx}` })
+                : <span key={`ln-${pIdx}-${nIdx}`}>{String(node)}</span>
+            );
+          });
+        } else if (latexNodes != null) {
+          out.push(
+            React.isValidElement(latexNodes)
+              ? React.cloneElement(latexNodes, { key: `ln-${pIdx}` })
+              : <span key={`ln-${pIdx}`}>{String(latexNodes)}</span>
+          );
         }
-      } catch (error) {
-        console.error('LaTeX rendering error:', error, 'for part:', part);
-        final.push(<span key={`error-${idx}`} className="text-red-500">[Render Error]</span>);
       }
     });
 
-    // Filter out null/undefined and return
-    const validElements = final.filter(f => f !== null && f !== undefined);
     return (
       <MediaErrorBoundary>
-        <span>{validElements.length > 0 ? validElements : text}</span>
+        <span>{out}</span>
       </MediaErrorBoundary>
     );
   } catch (error) {

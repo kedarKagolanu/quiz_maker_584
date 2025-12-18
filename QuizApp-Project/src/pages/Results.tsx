@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { storage } from "@/lib/storage";
@@ -9,8 +9,35 @@ import { soundEffects } from "@/lib/soundEffects";
 export const Results: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
+
+  const fromPage = searchParams.get('from');
+  const returnPath = searchParams.get('path');
+  const browseFolder = searchParams.get('folder');
+  const browseFilter = searchParams.get('filter');
+  const expanded = searchParams.get('expanded');
+
+  const getReturnUrl = () => {
+    if (fromPage === '/my-quizzes') {
+      return `/my-quizzes${returnPath ? `?path=${encodeURIComponent(returnPath)}` : ''}`;
+    }
+    if (fromPage === '/browse-quizzes') {
+      const qp = new URLSearchParams();
+      if (browseFilter) qp.set('filter', browseFilter);
+      if (browseFolder) qp.set('folder', browseFolder!);
+      const qs = qp.toString();
+      return `/browse-quizzes${qs ? `?${qs}` : ''}`;
+    }
+    if (fromPage === '/dashboard') {
+      const qp = new URLSearchParams();
+      if (expanded) qp.set('expanded', expanded!);
+      const qs = qp.toString();
+      return `/dashboard${qs ? `?${qs}` : ''}`;
+    }
+    return '/dashboard';
+  };
 
   useEffect(() => {
     const loadResults = async () => {
@@ -163,8 +190,8 @@ export const Results: React.FC = () => {
         </div>
 
         <div className="flex gap-3">
-          <TerminalButton onClick={() => navigate("/dashboard")}>dashboard</TerminalButton>
-          <TerminalButton onClick={() => navigate(`/leaderboard/${quiz.id}`)}>leaderboard</TerminalButton>
+          <TerminalButton onClick={() => navigate(getReturnUrl())}>back</TerminalButton>
+          <TerminalButton onClick={() => navigate(`/leaderboard/${quiz.id}${location.search || ''}`)}>leaderboard</TerminalButton>
         </div>
       </div>
     </Terminal>

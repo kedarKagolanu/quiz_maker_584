@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getDisplayQuestionCounts } from "@/lib/recursiveQuizResolver";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { CacheMonitor } from "@/components/CacheMonitor";
@@ -179,6 +179,7 @@ export const Dashboard: React.FC = () => {
   const [attempts, setAttempts] = useState<any[]>([]);
   const [availableFolderTree, setAvailableFolderTree] = useState<FolderTree | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showAccessCodeInput, setShowAccessCodeInput] = useState(false);
   const [accessCodeInput, setAccessCodeInput] = useState("");
   const [questionCounts, setQuestionCounts] = useState<Map<string, number>>(new Map());
@@ -193,6 +194,13 @@ export const Dashboard: React.FC = () => {
     if (!user) {
       navigate("/");
       return;
+    }
+
+    // Restore expanded folders from URL if present
+    const expandedParam = searchParams.get('expanded');
+    if (expandedParam) {
+      const ids = expandedParam.split(',').filter(Boolean);
+      setExpandedFolders(new Set(ids));
     }
 
     const loadData = async () => {
@@ -327,6 +335,11 @@ export const Dashboard: React.FC = () => {
       } else {
         newSet.add(folderId);
       }
+      // Update URL param
+      const next = new URLSearchParams(searchParams);
+      const value = Array.from(newSet).join(',');
+      if (value) next.set('expanded', value); else next.delete('expanded');
+      setSearchParams(next, { replace: true });
       return newSet;
     });
   };
@@ -389,13 +402,13 @@ export const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}/customize`)}>
+                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}/customize?from=/dashboard&expanded=${encodeURIComponent(Array.from(expandedFolders).join(','))}`)}>
                     customize & take
                   </TerminalButton>
-                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}`)}>
+                  <TerminalButton onClick={() => navigate(`/quiz/${quiz.id}?from=/dashboard&expanded=${encodeURIComponent(Array.from(expandedFolders).join(','))}`)}>
                     take now
                   </TerminalButton>
-                  <TerminalButton onClick={() => navigate(`/leaderboard/${quiz.id}`)}>
+                  <TerminalButton onClick={() => navigate(`/leaderboard/${quiz.id}?from=/dashboard&expanded=${encodeURIComponent(Array.from(expandedFolders).join(','))}`)}>
                     leaderboard
                   </TerminalButton>
                 </div>

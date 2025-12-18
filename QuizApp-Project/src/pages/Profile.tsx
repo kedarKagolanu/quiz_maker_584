@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, supabase } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
 import { Quiz, QuizAttempt, User, QuizFolder } from "@/types/quiz";
@@ -9,9 +9,12 @@ import { toast } from "sonner";
 import { useRecursiveQuestionCounts } from "@/hooks/useRecursiveQuestionCount";
 import { quizSchema, folderNameSchema, validateInput } from "@/lib/validation";
 import { handleError } from "@/lib/errorHandler";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 export const Profile: React.FC = () => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, session } = useAuth();
   const navigate = useNavigate();
   const { username } = useParams<{ username: string }>();
   
@@ -19,6 +22,8 @@ export const Profile: React.FC = () => {
   const [userQuizzes, setUserQuizzes] = useState<Quiz[]>([]);
   const [userAttempts, setUserAttempts] = useState<QuizAttempt[]>([]);
   const [loading, setLoading] = useState(true);
+  const [quizPage, setQuizPage] = useState(0);
+  const pageSize = 5;
   
   // Get recursive question counts for user's quizzes
   const { questionCounts } = useRecursiveQuestionCounts(userQuizzes);
@@ -26,6 +31,7 @@ export const Profile: React.FC = () => {
 
   // Check if database is configured
   const isDatabaseConfigured = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+
 
   useEffect(() => {
     if (!currentUser) {
@@ -188,17 +194,41 @@ export const Profile: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-terminal-accent/20 flex items-center justify-center">
-              <UserIcon className="w-8 h-8 text-terminal-accent" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-terminal-bright">{profileUser.username}</h1>
-              <p className="text-sm text-terminal-dim">
-                Member since {new Date(profileUser.createdAt).toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
+           <div className="w-16 h-16 rounded-full bg-terminal-accent/20 flex items-center justify-center">
+             <UserIcon className="w-8 h-8 text-terminal-accent" />
+           </div>
+           <div>
+             <h1 className="text-2xl font-bold text-terminal-bright">{profileUser.username}</h1>
+             <p className="text-sm text-terminal-dim">
+               Member since {new Date(profileUser.createdAt).toLocaleDateString()}
+             </p>
+             {isOwnProfile && (
+               <SignedInVia />
+             )}
+             {/* Signed in via indicator */}
+           </div>
+         </div>
+          <div className="flex gap-2 items-center">
+            {/* Auth tips tooltip */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <TerminalButton variant="ghost">auth tips</TerminalButton>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-md">
+                <div className="text-sm">
+                  <div className="font-semibold mb-1">Email vs Google</div>
+                  <p className="text-xs text-terminal-dim">
+                    If you created your account with email/password and later want to use Google sign-in,
+                    connect Google from here while signed in. This links providers to the same account and avoids duplicates.
+                  </p>
+                  <div className="font-semibold mt-2 mb-1">Using only Google</div>
+                  <p className="text-xs text-terminal-dim">
+                    Accounts created with Google don’t have a password by default. You can set one later in account settings if needed.
+                  </p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+
             {isOwnProfile && isDatabaseConfigured && (
               <TerminalButton 
                 onClick={handleMigrateLocalStorage}
@@ -225,6 +255,16 @@ export const Profile: React.FC = () => {
             <TerminalButton onClick={() => navigate(-1)}>back</TerminalButton>
           </div>
         </div>
+
+        {/* Account Linking: Google OAuth pinned to top */}
+        {isOwnProfile && (
+          <div>
+            <TerminalLine prefix="#">Account Linking</TerminalLine>
+            <div className="ml-6 mt-2 space-y-2">
+              <GoogleLinkingSection />
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div>
@@ -291,6 +331,16 @@ export const Profile: React.FC = () => {
           )}
         </div>
 
+        {/* Account Linking: Google OAuth */}
+        {isOwnProfile && (
+          <div>
+            <TerminalLine prefix="#">Account Linking</TerminalLine>
+            <div className="ml-6 mt-2 space-y-2">
+              <GoogleLinkingSection />
+            </div>
+          </div>
+        )}
+
         {/* Music Library */}
         {isOwnProfile && (
           <div>
@@ -343,6 +393,214 @@ export const Profile: React.FC = () => {
         </div>
       </div>
     </Terminal>
+  );
+};
+
+const GoogleLinkingSection: React.FC = () => {
+  const { session } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [identities, setIdentities] = useState<any[]>([]);
+
+  const isConfigured = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+  const refreshIdentities = async () => {
+    if (!supabase) return;
+    const { data } = await supabase.auth.getUser();
+    setIdentities((data.user?.identities as any[]) || []);
+  };
+
+  useEffect(() => {
+    refreshIdentities().catch(() => setIdentities([]));
+  }, []);
+
+  const googleIdentity = identities.find((i) => i.provider === 'google');
+  const identityCount = identities.length;
+  const isLinked = !!googleIdentity;
+
+  const handleConnect = async () => {
+    if (!supabase) return;
+    setLoading(true);
+    try {
+      const redirectTo = `${window.location.origin}/dashboard`;
+      const { error } = await supabase.auth.linkIdentity({ provider: 'google', options: { redirectTo } } as any);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        // Supabase will usually redirect for OAuth linking
+        toast.message('Redirecting to Google to link your account...');
+      }
+    } catch (e: any) {
+      toast.error('Failed to start Google linking');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!supabase) return;
+    if (!googleIdentity) return;
+
+    // Guardrail: do not allow unlink if it is the only identity
+    if (identityCount <= 1) {
+      toast.error('Cannot disconnect Google: no other login method is linked. Add a password or another provider first.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.unlinkIdentity(googleIdentity);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Google disconnected');
+        await refreshIdentities();
+      }
+    } catch (e: any) {
+      toast.error('Failed to disconnect Google');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="border border-terminal-accent/30 p-3 rounded">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-terminal-bright">Google</div>
+          <div className="text-xs text-terminal-dim">
+            {isLinked ? 'Linked to your account' : 'Not linked. Link Google while signed in to avoid duplicate accounts.'}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {isLinked ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <TerminalButton onClick={handleDisconnect} disabled={loading || !isConfigured || identityCount <= 1}>
+                    {loading ? 'working...' : 'disconnect'}
+                  </TerminalButton>
+                </div>
+              </TooltipTrigger>
+              {identityCount <= 1 && (
+                <TooltipContent>
+                  You cannot disconnect Google because it is your only login method. Set a password first.
+                </TooltipContent>
+              )}
+            </Tooltip>
+          ) : (
+            <TerminalButton onClick={handleConnect} disabled={loading || !isConfigured}>
+              {loading ? 'working...' : 'connect Google'}
+            </TerminalButton>
+          )}
+        </div>
+      </div>
+      {/* Set Password for Google-only accounts */}
+      {identityCount <= 1 && !isLinked ? null : null}
+      {identityCount <= 1 && isLinked && (
+        <SetPasswordInline onSuccess={refreshIdentities} />
+      )}
+    </div>
+  );
+};
+
+const ProviderBadges: React.FC = () => {
+  const [providers, setProviders] = useState<string[]>([]);
+  useEffect(() => {
+    const load = async () => {
+      if (!supabase) return;
+      const { data } = await supabase.auth.getUser();
+      const ids = (data.user?.identities || []) as any[];
+      const names = ids.map(i => i.provider).filter(Boolean);
+      setProviders(names);
+    };
+    load();
+  }, []);
+  if (providers.length === 0) return null;
+  return (
+    <div className="flex items-center gap-1">
+      {providers.map((p) => (
+        <Badge key={p} variant="secondary" className="text-[10px] uppercase tracking-wide">
+          {p}
+        </Badge>
+      ))}
+    </div>
+  );
+};
+
+const SignedInVia: React.FC = () => {
+  const { session } = useAuth();
+  const [providers, setProviders] = useState<string[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!supabase) return;
+      const { data } = await supabase.auth.getUser();
+      const ids = (data.user?.identities || []) as any[];
+      const names = ids.map(i => i.provider).filter(Boolean);
+      setProviders(names);
+    };
+    load();
+  }, []);
+
+  if (providers.length === 0) return null;
+  const via = providers.join(', ');
+  return (
+    <div className="text-xs text-terminal-dim">Signed in via: {via}</div>
+  );
+};
+
+const SetPasswordInline: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
+  const [pw1, setPw1] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const canSave = pw1.length >= 8 && pw1 === pw2;
+
+  const save = async () => {
+    if (!canSave || !supabase) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pw1 });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Password set successfully');
+        setPw1(''); setPw2('');
+        onSuccess?.();
+      }
+    } catch (e: any) {
+      toast.error('Failed to set password');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 p-3 border border-terminal-accent/30 rounded bg-terminal-accent/5">
+      <div className="text-sm text-terminal-bright mb-2">Set a password</div>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Input
+          type="password"
+          value={pw1}
+          onChange={(e) => setPw1(e.target.value)}
+          placeholder="New password (min 8 chars)"
+          className="flex-1"
+        />
+        <Input
+          type="password"
+          value={pw2}
+          onChange={(e) => setPw2(e.target.value)}
+          placeholder="Confirm password"
+          className="flex-1"
+        />
+        <TerminalButton onClick={save} disabled={!canSave || busy}>
+          {busy ? 'saving...' : 'save password'}
+        </TerminalButton>
+      </div>
+      <div className="text-xs text-terminal-dim mt-2">
+        After setting a password, you can sign in with email/password and safely disconnect Google.
+      </div>
+    </div>
   );
 };
 

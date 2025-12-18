@@ -8,6 +8,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (email: string, password: string, username: string) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  signInWithProvider: (provider: 'google' | 'github' | 'gitlab' | 'bitbucket' | 'azure' | 'facebook' | 'discord' | 'twitch' | 'spotify' | 'slack' | 'notion' | 'linkedin_oidc' | 'kakao' | 'keycloak' | 'workos' | 'zoom') => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   isAdmin: boolean;
 }
@@ -202,8 +203,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAdmin(false);
   };
 
+  const signInWithProvider = async (
+    provider: 'google' | 'github' | 'gitlab' | 'bitbucket' | 'azure' | 'facebook' | 'discord' | 'twitch' | 'spotify' | 'slack' | 'notion' | 'linkedin_oidc' | 'kakao' | 'keycloak' | 'workos' | 'zoom'
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) {
+      return { success: false, error: 'Database not configured. Please enable Lovable Cloud.' };
+    }
+
+    try {
+      const redirectTo = `${window.location.origin}/dashboard`;
+      const { error, data } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo,
+        },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      // For OAuth, Supabase will handle redirect; return success to update UI if needed
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, login, signup, resetPassword, logout, isAdmin }}>
+    <AuthContext.Provider value={{ user, session, login, signup, resetPassword, signInWithProvider, logout, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { storage } from "@/lib/storage";
@@ -24,6 +24,7 @@ export const QuizBrowser: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<FilterType>('folder');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string>("");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [folderContents, setFolderContents] = useState<{quizzes: Quiz[], subfolders: QuizFolder[]}>({quizzes: [], subfolders: []});
   const [loading, setLoading] = useState(true);
 
@@ -216,6 +217,36 @@ export const QuizBrowser: React.FC = () => {
     loadData();
   }, [user, navigate]);
 
+  // Initialize selection from URL once data is loaded
+  useEffect(() => {
+    if (folders.length === 0) return;
+    const folderParam = searchParams.get('folder') || '';
+    const filterParam = searchParams.get('filter') as FilterType | null;
+    if (filterParam) setActiveFilter(filterParam);
+    if (folderParam) {
+      // folderParam is a path; map to folder id
+      const match = folders.find(f => (f.parentPath ? `${f.parentPath}/${f.name}` : f.name) === folderParam);
+      if (match) setSelectedFolder(match.id);
+      setCurrentFolderPath(folderParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folders.length]);
+
+  // Keep URL in sync
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (activeFilter && activeFilter !== (searchParams.get('filter') as FilterType)) {
+      next.set('filter', activeFilter);
+    }
+    if (activeFilter === 'folder') {
+      if (currentFolderPath) next.set('folder', currentFolderPath); else next.delete('folder');
+    } else {
+      next.delete('folder');
+    }
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilter, currentFolderPath]);
+
   useEffect(() => {
     applyFilter();
   }, [quizzes, activeFilter, selectedFolder, attempts]);
@@ -311,6 +342,8 @@ export const QuizBrowser: React.FC = () => {
   const handleFolderClick = (folder: QuizFolder) => {
     setActiveFilter('folder');
     setSelectedFolder(folder.id);
+    const path = getFolderPath(folder.id);
+    setCurrentFolderPath(path);
   };
 
   const navigateToParentFolder = () => {
@@ -367,12 +400,13 @@ export const QuizBrowser: React.FC = () => {
   };
 
   const handleQuizClick = (quiz: Quiz, customize: boolean = false) => {
+    const fromBase = '/browse-quizzes';
+    const pathParam = currentFolderPath ? `&folder=${encodeURIComponent(currentFolderPath)}` : '';
+    const filterParam = activeFilter ? `&filter=${encodeURIComponent(activeFilter)}` : '';
     if (customize) {
-      // Both buttons now go to the same customize page
-      navigate(`/quiz/${quiz.id}/customize`);
+      navigate(`/quiz/${quiz.id}/customize?from=${fromBase}${pathParam}${filterParam}`);
     } else {
-      // Quick start goes directly to taking the quiz
-      navigate(`/quiz/${quiz.id}/take`);
+      navigate(`/quiz/${quiz.id}/take?from=${fromBase}${pathParam}${filterParam}`);
     }
   };
 
