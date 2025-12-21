@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/remove-console-logs.js && vite build",
-    "build:dev": "vite build --mode development",
-    "build:prod": "node scripts/remove-console-logs.js && vite build --mode production",
+    "build": "vite build",
+    "build:dev": "vite build --mode development", 
+    "build:prod": "vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview",
     "clean-logs": "node scripts/remove-console-logs.js"
