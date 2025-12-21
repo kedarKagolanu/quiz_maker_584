@@ -5,11 +5,18 @@ import DOMPurify from 'dompurify';
 import { MediaItem } from '@/types/quiz';
 import { renderMediaTags } from '@/lib/mediaRenderer';
 import MediaErrorBoundary from './MediaErrorBoundary';
+// import { EquationEditor as EquationEditorSafe } from './EquationEditorSafe';
+import { EquationEditorFloating } from './EquationEditor';
 
 interface LatexRendererProps {
+  // original text content to render
   text: string;
   media?: MediaItem[];
   imageSize?: 'small' | 'medium' | 'large' | 'xlarge';
+  // enable right-click editing of LaTeX equations inside $...$
+  editable?: boolean;
+  // called with updated text after an equation is edited
+  onChangeText?: (updated: string) => void;
 }
 
 // Replace special placeholders with real code-fence markers
@@ -85,15 +92,34 @@ const processSpecialCharacters = (text: string): string => {
   }).join('');
 };
 
-// Tokenizer to split text into text, inline code, and fenced block code (```lang optionalSameLineCode) segments
-function tokenizeCodeAndText(input: string): Array<{ type: 'text' | 'block' | 'inline'; lang?: string; content: string }> {
-  const segments: Array<{ type: 'text' | 'block' | 'inline'; lang?: string; content: string }> = [];
+// Enhanced tokenizer with position tracking for inline editing
+function tokenizeCodeAndText(input: string): Array<{ 
+  type: 'text' | 'block' | 'inline'; 
+  lang?: string; 
+  content: string;
+  startIndex?: number;
+  endIndex?: number;
+}> {
+  const segments: Array<{ 
+    type: 'text' | 'block' | 'inline'; 
+    lang?: string; 
+    content: string;
+    startIndex?: number;
+    endIndex?: number;
+  }> = [];
   let i = 0;
   let textBuffer = '';
+  let textStart = 0;
 
   const pushText = (t: string) => {
     if (!t) return;
-    segments.push({ type: 'text', content: t });
+    segments.push({ 
+      type: 'text', 
+      content: t,
+      startIndex: textStart,
+      endIndex: textStart + t.length
+    });
+    textStart += t.length;
   };
 
   const tryFence = (src: string, idx: number) => {
@@ -132,7 +158,13 @@ function tokenizeCodeAndText(input: string): Array<{ type: 'text' | 'block' | 'i
 
     return {
       consumed: closeIdx + 3 - idx,
-      seg: { type: 'block' as const, lang, content: codeBody }
+      seg: { 
+        type: 'block' as const, 
+        lang, 
+        content: codeBody,
+        startIndex: idx,
+        endIndex: closeIdx + 3
+      }
     };
   };
 
@@ -144,24 +176,39 @@ function tokenizeCodeAndText(input: string): Array<{ type: 'text' | 'block' | 'i
     const content = src.slice(idx + 1, j);
     return {
       consumed: j + 1 - idx,
-      seg: { type: 'inline' as const, content }
+      seg: { 
+        type: 'inline' as const, 
+        content,
+        startIndex: idx,
+        endIndex: j + 1
+      }
     };
   };
 
   while (i < input.length) {
     const fence = tryFence(input, i);
     if (fence && fence.consumed > 0 && fence.seg) {
-      if (textBuffer) { pushText(textBuffer); textBuffer = ''; }
+      if (textBuffer) { 
+        pushText(textBuffer); 
+        textBuffer = ''; 
+        textStart = i;
+      }
       segments.push(fence.seg);
       i += fence.consumed;
+      textStart = i;
       continue;
     }
 
     const inline = tryInline(input, i);
     if (inline && inline.consumed > 0 && inline.seg) {
-      if (textBuffer) { pushText(textBuffer); textBuffer = ''; }
+      if (textBuffer) { 
+        pushText(textBuffer); 
+        textBuffer = ''; 
+        textStart = i;
+      }
       segments.push(inline.seg);
       i += inline.consumed;
+      textStart = i;
       continue;
     }
 
@@ -173,7 +220,97 @@ function tokenizeCodeAndText(input: string): Array<{ type: 'text' | 'block' | 'i
   return segments;
 }
 
-export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, imageSize = 'medium' }) => {
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from '@/components/ui/context-menu';
+
+export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, imageSize = 'medium', editable = false, onChangeText }) => {
+  const [editorOpen, setEditorOpen] = React.useState(false);
+  const [currentEquation, setCurrentEquation] = React.useState<string>('');
+  const [editorAnchor, setEditorAnchor] = React.useState<{x:number;y:number}|null>(null);
+  
+  // Code block editor state
+  const [codeEditor, setCodeEditor] = React.useState<null | {
+    id: string;
+    content: string;
+    lang: string;
+    originalText: string;
+    startIndex: number;
+    endIndex: number;
+  }>(null);
+  const [codeHistory, setCodeHistory] = React.useState<string[]>([]);
+  const [codeHistoryIndex, setCodeHistoryIndex] = React.useState<number>(-1);
+
+  // Code block editor functions
+  const openCodeEditor = (content: string, lang: string, startIdx: number, endIdx: number, blockId?: string) => {
+    const id = blockId || `code-${Date.now()}`;
+    console.log('Opening code editor with ID:', id);
+    setCodeEditor({
+      id,
+      content,
+      lang,
+      originalText: content,
+      startIndex: startIdx,
+      endIndex: endIdx
+    });
+    setCodeHistory([content]);
+    setCodeHistoryIndex(0);
+  };
+
+  const closeCodeEditor = () => {
+    setCodeEditor(null);
+    setCodeHistory([]);
+    setCodeHistoryIndex(-1);
+  };
+
+  const updateCodeContent = (newContent: string) => {
+    if (!codeEditor) return;
+    
+    // Update current state
+    setCodeEditor(prev => prev ? { ...prev, content: newContent } : null);
+    
+    // Add to history if significantly different
+    const lastEntry = codeHistory[codeHistoryIndex];
+    if (lastEntry !== newContent && newContent.trim() !== lastEntry?.trim()) {
+      const newHistory = [...codeHistory.slice(0, codeHistoryIndex + 1), newContent];
+      setCodeHistory(newHistory.slice(-20)); // Keep last 20 entries
+      setCodeHistoryIndex(Math.min(newHistory.length - 1, 19));
+    }
+  };
+
+  const codeUndo = () => {
+    if (codeHistoryIndex > 0) {
+      const newIndex = codeHistoryIndex - 1;
+      setCodeHistoryIndex(newIndex);
+      const content = codeHistory[newIndex];
+      setCodeEditor(prev => prev ? { ...prev, content } : null);
+    }
+  };
+
+  const codeRedo = () => {
+    if (codeHistoryIndex < codeHistory.length - 1) {
+      const newIndex = codeHistoryIndex + 1;
+      setCodeHistoryIndex(newIndex);
+      const content = codeHistory[newIndex];
+      setCodeEditor(prev => prev ? { ...prev, content } : null);
+    }
+  };
+
+  const saveCodeEdit = () => {
+    if (!codeEditor || !onChangeText) return;
+    
+    // Reconstruct the text with the updated code block, preserving original formatting
+    const before = text.slice(0, codeEditor.startIndex);
+    const after = text.slice(codeEditor.endIndex);
+    const newCodeBlock = `\`\`\`${codeEditor.lang}\n${codeEditor.content.trimEnd()}\n\`\`\``;
+    const updated = `${before}${newCodeBlock}${after}`;
+    
+    onChangeText(updated);
+    closeCodeEditor();
+  };
+
+  const cancelCodeEdit = () => {
+    closeCodeEditor();
+  };
+
   const renderLatex = (input: string | React.ReactNode) => {
     if (typeof input !== 'string') return input;
 
@@ -183,6 +320,8 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
     let match: RegExpExecArray | null;
 
     while ((match = regex.exec(input)) !== null) {
+      const start = match.index;
+      const end = regex.lastIndex;
       // Add text before LaTeX
       if (match.index > lastIndex) {
         parts.push(input.substring(lastIndex, match.index));
@@ -200,11 +339,23 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
         const sanitizedHtml = DOMPurify.sanitize(html, {
           KEEP_CONTENT: true
         });
+        const eq = match[1];
+        const openEqEditor = (e: React.MouseEvent) => {
+          e.preventDefault();
+          setCurrentEquation(eq);
+          setEditorAnchor({ x: e.clientX, y: e.clientY });
+          setEditorOpen(true);
+        };
+        const onContextMenu = editable ? openEqEditor : undefined;
+        const onClick = editable ? openEqEditor : undefined;
         parts.push(
           <span
             key={match.index}
+            onContextMenu={onContextMenu}
+            onClick={onClick}
             dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-            className="inline-block"
+            className="inline-block latex-equation-highlight cursor-pointer"
+            title={editable ? 'Click to edit equation - Content sanitized' : 'LaTeX equation - Content sanitized'}
           />
         );
       } catch {
@@ -223,7 +374,7 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
   };
 
   try {
-    const useNewFence = String(import.meta.env.VITE_ENABLE_NEW_CODE_FENCE || 'true') === 'true';
+    const useNewFence = true; // Always enable new fence for code editing functionality
 
     // Validate and normalize input text
     if (!text) {
@@ -259,11 +410,100 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
         segs.forEach((seg, sIdx) => {
           if (seg.type === 'block') {
             const safe = DOMPurify.sanitize(seg.content, { KEEP_CONTENT: true });
-            out.push(
-              <pre key={`blk-${pIdx}-${sIdx}`} style={{ whiteSpace: 'pre-wrap', overflowX: 'auto' }} className="rounded border border-terminal-accent/30 bg-terminal-accent/10 p-3 my-2">
-                <code className={seg.lang ? `language-${seg.lang}` : undefined}>{safe}</code>
-              </pre>
-            );
+            const blockId = `blk-${pIdx}-${sIdx}`;
+            const isEditing = codeEditor?.id === blockId;
+            
+            console.log('Rendering code block:', { blockId, isEditing, editable, content: seg.content.substring(0, 50) });
+            
+            if (editable && isEditing) {
+              // Inline editor for code block
+              out.push(
+                <div key={blockId} className="rounded border border-blue-400 bg-terminal-accent/10 p-3 my-2 relative">
+                  <div className="flex items-center justify-between mb-2 text-xs">
+                    <span className="text-terminal-dim">Editing {seg.lang || 'code'} block</span>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={codeUndo} 
+                        disabled={codeHistoryIndex <= 0}
+                        className="px-2 py-1 bg-terminal-accent/20 rounded disabled:opacity-50 hover:bg-terminal-accent/30"
+                        title="Undo (Ctrl+Z)"
+                      >
+                        ↶
+                      </button>
+                      <button 
+                        onClick={codeRedo} 
+                        disabled={codeHistoryIndex >= codeHistory.length - 1}
+                        className="px-2 py-1 bg-terminal-accent/20 rounded disabled:opacity-50 hover:bg-terminal-accent/30"
+                        title="Redo (Ctrl+Y)"
+                      >
+                        ↷
+                      </button>
+                      <button 
+                        onClick={saveCodeEdit}
+                        className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        title="Save (Ctrl+S)"
+                      >
+                        Save
+                      </button>
+                      <button 
+                        onClick={cancelCodeEdit}
+                        className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                        title="Cancel (Esc)"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    value={codeEditor.content}
+                    onChange={(e) => updateCodeContent(e.target.value)}
+                    className="w-full h-32 bg-terminal text-terminal-bright border border-terminal-accent/60 rounded p-2 font-mono text-sm resize-y"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cancelCodeEdit();
+                      } else if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        saveCodeEdit();
+                      } else if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+                        e.preventDefault();
+                        codeUndo();
+                      } else if (e.key === 'y' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        codeRedo();
+                      } else if (e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+                        e.preventDefault();
+                        codeRedo();
+                      }
+                    }}
+                    autoFocus
+                  />
+                </div>
+              );
+            } else {
+              // Read-only code block with edit capability
+              out.push(
+                <pre 
+                  key={blockId} 
+                  style={{ whiteSpace: 'pre-wrap', overflowX: 'auto' }} 
+                  className={`rounded border border-terminal-accent/30 bg-terminal-accent/10 p-3 my-2 relative group ${editable ? 'cursor-pointer hover:border-blue-400/50' : ''}`}
+                  onClick={editable ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Code block clicked for editing:', { blockId, content: seg.content });
+                    openCodeEditor(seg.content, seg.lang || '', seg.startIndex || 0, seg.endIndex || 0, blockId);
+                  } : undefined}
+                  title={editable ? 'Click to edit code block' : undefined}
+                >
+                  {editable && (
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded">✎ Click to edit</span>
+                    </div>
+                  )}
+                  <code className={seg.lang ? `language-${seg.lang}` : undefined}>{safe}</code>
+                </pre>
+              );
+            }
           } else if (seg.type === 'inline') {
             const safe = DOMPurify.sanitize(seg.content, { KEEP_CONTENT: true });
             out.push(
@@ -315,9 +555,32 @@ export const LatexRenderer: React.FC<LatexRendererProps> = ({ text, media, image
     });
 
     return (
-      <MediaErrorBoundary>
-        <span>{out}</span>
-      </MediaErrorBoundary>
+      <>
+        <MediaErrorBoundary>
+          <span>{out}</span>
+        </MediaErrorBoundary>
+        <EquationEditorFloating
+          sourceId="LatexRenderer"
+          open={editorOpen}
+          onOpenChange={(o)=>{ setEditorOpen(o); if(!o) setEditorAnchor(null);} }
+          value={currentEquation}
+          anchor={editorAnchor}
+          onSave={(newValue) => {
+            // Prefer direct callback to parent when available
+            if (onChangeText && typeof text === 'string' && currentEquation != null) {
+              const oldWrapped = `$${currentEquation}$`;
+              const newWrapped = `$${newValue}$`;
+              const idx = text.indexOf(oldWrapped);
+              if (idx !== -1) {
+                const updated = text.slice(0, idx) + newWrapped + text.slice(idx + oldWrapped.length);
+                onChangeText(updated);
+              }
+            }
+            const ev = new CustomEvent('latex-equation-edited', { detail: { old: currentEquation, value: newValue } });
+            window.dispatchEvent(ev);
+          }}
+        />
+      </>
     );
   } catch (error) {
     console.error('LatexRenderer outer error:', error);

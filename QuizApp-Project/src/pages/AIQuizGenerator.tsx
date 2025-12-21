@@ -308,6 +308,12 @@ export function AIQuizGeneratorPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="container mx-auto px-4 py-8">
+        {/* WIP Notice */}
+        <div className="mb-6">
+          <div className="p-4 border-2 border-yellow-400/60 bg-yellow-400/10 rounded text-yellow-300 font-semibold text-center">
+            🚧 AI Generator - Work in Progress. Some features may not be available yet.
+          </div>
+        </div>
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">

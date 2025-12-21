@@ -9,8 +9,10 @@ interface QuizPreviewProps {
   currentQuestionIndex: number;
   onQuestionChange: (index: number) => void;
   onImageSizeChange: (size: 'small' | 'medium' | 'large' | 'xlarge') => void;
+  editable?: boolean;
+  onEditQuestion?: (qIndex: number, newText: string) => void;
+  onEditOption?: (qIndex: number, optIndex: number, newText: string) => void;
 }
-
 const getImageSizeStyles = (size: 'small' | 'medium' | 'large' | 'xlarge') => {
   switch (size) {
     case 'small':
@@ -32,7 +34,10 @@ export const QuizPreview: React.FC<QuizPreviewProps> = ({
   imageSize,
   currentQuestionIndex,
   onQuestionChange,
-  onImageSizeChange
+  onImageSizeChange,
+  editable = false,
+  onEditQuestion,
+  onEditOption
 }) => {
   if (!questions || questions.length === 0) {
     return (
@@ -65,8 +70,11 @@ export const QuizPreview: React.FC<QuizPreviewProps> = ({
         <div className="text-blue-300 font-bold text-lg flex items-center gap-2">
           🎯 <span>Live Quiz Preview</span>
         </div>
-        <div className="text-sm text-blue-400">
-          Matches actual quiz rendering 100%
+        <div className="text-sm text-blue-400 flex flex-col">
+          <span>Matches actual quiz rendering 100%</span>
+          {editable && (
+            <span className="text-xs text-blue-300 mt-1">Tip: Right-click any highlighted equation to edit it. Live preview appears in the editor; use math buttons to insert without LaTeX knowledge.</span>
+          )}
         </div>
       </div>
 
@@ -139,7 +147,13 @@ export const QuizPreview: React.FC<QuizPreviewProps> = ({
         {/* Question Text */}
         <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600/50">
           <div className="text-gray-200 text-lg" style={{ lineHeight: '1.6' }}>
-            <LatexRenderer text={currentQuestion.q} media={tempMediaWithSize} imageSize={imageSize} />
+            <LatexRenderer
+              text={currentQuestion.q}
+              media={tempMediaWithSize}
+              imageSize={imageSize}
+              editable={editable}
+              onChangeText={(updated) => onEditQuestion && onEditQuestion(currentQuestionIndex, updated)}
+            />
           </div>
         </div>
 
@@ -162,7 +176,13 @@ export const QuizPreview: React.FC<QuizPreviewProps> = ({
                   {String.fromCharCode(65 + idx)}.
                 </span>
                 <div className="flex-1" style={{ lineHeight: '1.6' }}>
-                  <LatexRenderer text={option} media={tempMediaWithSize} imageSize={imageSize} />
+                  <LatexRenderer
+                      text={option}
+                      media={tempMediaWithSize}
+                      imageSize={imageSize}
+                      editable={editable}
+                      onChangeText={(updated) => onEditOption && onEditOption(currentQuestionIndex, idx, updated)}
+                    />
                 </div>
                 {currentQuestion.a === idx && (
                   <span className="text-green-400 font-bold text-sm">✓ Correct</span>

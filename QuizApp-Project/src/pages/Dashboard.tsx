@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Terminal, TerminalLine, TerminalButton } from "@/components/Terminal";
 import { CacheMonitor } from "@/components/CacheMonitor";
 import { useCacheWarming } from "@/hooks/useCacheWarming";
+import { offlineManager } from "@/lib/offlineManager";
 import { storage } from "@/lib/storage";
 import { Quiz, QuizFolder } from "@/types/quiz";
 import { ChevronRight, ChevronDown, Folder, FileText, Send, MessageCircle, Music, Wand2 } from "lucide-react";
@@ -183,17 +184,21 @@ export const Dashboard: React.FC = () => {
   const [showAccessCodeInput, setShowAccessCodeInput] = useState(false);
   const [accessCodeInput, setAccessCodeInput] = useState("");
   const [questionCounts, setQuestionCounts] = useState<Map<string, number>>(new Map());
+  const [showCacheMonitor, setShowCacheMonitor] = useState(false);
+  
   const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Loading dashboard...');
-  const [showCacheMonitor, setShowCacheMonitor] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [offlineDataAvailable, setOfflineDataAvailable] = useState(false);
 
   // Warm up cache automatically
   useCacheWarming();
 
   useEffect(() => {
     if (!user) {
-      navigate("/");
-      return;
+      // Use setTimeout to avoid setState during render
+      const timer = setTimeout(() => navigate("/"), 0);
+      return () => clearTimeout(timer);
     }
 
     // Restore expanded folders from URL if present
@@ -205,11 +210,66 @@ export const Dashboard: React.FC = () => {
 
     const loadData = async () => {
       try {
+        const online = await offlineManager.isOnline();
+        setIsOffline(!online);
+        
+        if (!online) {
+          // Load from offline cache
+          setLoadingMessage('Loading offline data...');
+          const cachedQuizzes = await offlineManager.getCachedQuizzes();
+          const cachedFolders = await offlineManager.getCachedFolders();
+          
+          if (cachedQuizzes.length > 0 || cachedFolders.length > 0) {
+            setOfflineDataAvailable(true);
+            
+            // Convert cached data back to Quiz format
+            const offlineQuizzes = cachedQuizzes.map(cached => ({
+              id: cached.id,
+              title: cached.title,
+              description: cached.description,
+              questions: cached.questions,
+              creator: cached.creator,
+              isPublic: cached.isPublic,
+              tags: cached.tags,
+              folderPath: cached.folderPath,
+              createdAt: new Date(cached.cachedAt).toISOString()
+            }));
+            
+            setMyQuizzes(offlineQuizzes.filter((q) => q.creator === user.id));
+            
+            const accessibleQuizzes = offlineQuizzes.filter(
+              (q) => q.isPublic || q.creator === user.id
+            );
+            
+            // Simple question counting for offline
+            const simpleQuestionCounts = new Map();
+            accessibleQuizzes.forEach(quiz => {
+              simpleQuestionCounts.set(quiz.id, quiz.questions?.length || 0);
+            });
+            setQuestionCounts(simpleQuestionCounts);
+            
+            setLoadingMessage('Offline mode - cached data loaded');
+            setIsLoading(false);
+            return;
+          } else {
+            setLoadingMessage('No offline data available');
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        // Online mode - load fresh data
         setLoadingMessage('Loading quizzes...');
         const allQuizzes = await storage.getQuizzes();
         
         setLoadingMessage('Loading folders...');
         const allFolders = await storage.getFolders();
+        
+        // Cache data for offline use
+        await offlineManager.cacheQuizzes(allQuizzes);
+        for (const folder of allFolders) {
+          await offlineManager.cacheFolder(folder);
+        }
       
       // User's own quizzes
       setMyQuizzes(allQuizzes.filter((q) => q.creator === user.id));
@@ -258,7 +318,8 @@ export const Dashboard: React.FC = () => {
         // For multi-quiz, use a simple estimation to avoid expensive recursive calls
         if (quiz.multiQuizSources && quiz.multiQuizSources.length > 0) {
           // Estimate based on sources count - don't do expensive recursive resolution
-          simpleQuestionCounts.set(quiz.id, quiz.multiQuizSources.length * 10); // Rough estimate
+          const estimatedCount = Math.min(quiz.multiQuizQuestionLimit || 10, quiz.multiQuizSources.length * 5);
+          simpleQuestionCounts.set(quiz.id, estimatedCount);
         } else {
           simpleQuestionCounts.set(quiz.id, quiz.questions?.length || 0);
         }
@@ -284,6 +345,15 @@ export const Dashboard: React.FC = () => {
     };
     loadData();
   }, [user, navigate]);
+
+  // Helper function to count all folders in tree
+  const countAllFolders = (tree: FolderTree): number => {
+    let count = tree.subFolders.length;
+    tree.subFolders.forEach(subTree => {
+      count += countAllFolders(subTree);
+    });
+    return count;
+  };
 
   const buildFolderTree = (quizzes: Quiz[], folders: QuizFolder[]): FolderTree => {
     // Root level - quizzes without folder path (independent quizzes only)
@@ -504,14 +574,28 @@ export const Dashboard: React.FC = () => {
       <ThemeHammer />
       {/* <EmergencyTest /> */}
       <div className="flex items-center justify-between mb-4">
-        <TerminalLine prefix="~">Welcome back, {user.username}!</TerminalLine>
-        <TerminalButton 
-          onClick={() => setShowCacheMonitor(!showCacheMonitor)}
-          variant="secondary"
-          size="sm"
-        >
-          📊 {showCacheMonitor ? 'Hide' : 'Show'} Cache
-        </TerminalButton>
+        <div>
+          <TerminalLine prefix="~">Welcome back, {user.username}!</TerminalLine>
+          {isOffline && (
+            <TerminalLine prefix="!" className="text-yellow-400">
+              📱 Offline mode {offlineDataAvailable ? '- using cached data' : '- limited functionality'}
+            </TerminalLine>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {isOffline && offlineDataAvailable && (
+            <TerminalButton variant="secondary" size="sm" className="text-yellow-400">
+              📱 Offline
+            </TerminalButton>
+          )}
+          <TerminalButton 
+            onClick={() => setShowCacheMonitor(!showCacheMonitor)}
+            variant="secondary"
+            size="sm"
+          >
+            📊 {showCacheMonitor ? 'Hide' : 'Show'} Cache
+          </TerminalButton>
+        </div>
       </div>
 
       {/* Cache Monitor */}
@@ -529,10 +613,14 @@ export const Dashboard: React.FC = () => {
         <div>
           <TerminalLine prefix="#">Actions</TerminalLine>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-3 ml-6">
-            <TerminalButton onClick={() => navigate("/ai-generator")} className="flex items-center justify-center bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-purple-500/50 text-purple-300 hover:text-purple-200">
+            <div className="relative">
+              <div className="absolute -top-3 -right-3 z-10 bg-yellow-500 text-black text-[10px] font-extrabold uppercase px-2 py-1 rounded">WIP</div>
+              <TerminalButton onClick={() => navigate("/ai-generator")} className="flex items-center justify-center bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-purple-500/50 text-purple-300 hover:text-purple-200">
+
               <Wand2 className="w-4 h-4 mr-2" />
               🤖 AI quiz generator
-            </TerminalButton>
+             </TerminalButton>
+           </div>
             <TerminalButton onClick={() => navigate("/create")} className="flex items-center justify-center">
               manual quiz creation
             </TerminalButton>

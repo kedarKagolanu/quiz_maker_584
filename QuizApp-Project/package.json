@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/remove-console-logs.js && vite build",
     "build:dev": "vite build --mode development",
+    "build:prod": "node scripts/remove-console-logs.js && vite build --mode production",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "clean-logs": "node scripts/remove-console-logs.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -40,7 +42,6 @@
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/supabase-js": "^2.75.0",
-    "@tanstack/react-query": "^5.90.11",
     "@types/dompurify": "^3.0.5",
     "@types/katex": "^0.16.7",
     "@types/uuid": "^10.0.0",
@@ -53,7 +54,6 @@
     "katex": "^0.16.24",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
-    "pdf-parse": "^2.4.5",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",

@@ -231,8 +231,11 @@ export const Auth: React.FC = () => {
          Already have an account with email? Sign in first, then link Google from your Profile to avoid duplicate accounts.
        </div>
        <TerminalLine prefix="~">or continue with Google</TerminalLine>
-       <div className="flex flex-wrap gap-2 mt-2">
-         <TerminalButton type="button" onClick={async () => {
+       <div className="flex flex-col gap-2 mt-2">
+         <div className="p-3 border-2 border-yellow-400/60 bg-yellow-400/10 rounded text-yellow-300 font-semibold text-center">
+           🚧 Google sign-in - Work in Progress. This button may be disabled in some environments.
+         </div>
+         <TerminalButton type="button" disabled onClick={async () => {
            const res = await signInWithProvider('google');
            if (!res.success && res.error) {
              toast.error(res.error);

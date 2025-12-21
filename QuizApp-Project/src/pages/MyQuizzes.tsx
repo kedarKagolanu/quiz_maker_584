@@ -9,6 +9,7 @@ import { Copy, Edit, Trash2, Folder, FolderOpen, ChevronRight, Send, Globe, Lock
 import { QuizQuestionCount } from "@/components/QuizQuestionCount";
 import { handleError } from "@/lib/errorHandler";
 import { CachedStorageDriver } from "@/lib/cache/CachedStorageDriver";
+import { offlineManager } from "@/lib/offlineManager";
 
 export const MyQuizzes: React.FC = () => {
   const { user } = useAuth();
@@ -17,6 +18,8 @@ export const MyQuizzes: React.FC = () => {
   const [folders, setFolders] = useState<QuizFolder[]>([]);
   const [currentPath, setCurrentPath] = useState<string>("");
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [offlineDataAvailable, setOfflineDataAvailable] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
@@ -79,13 +82,60 @@ export const MyQuizzes: React.FC = () => {
     const loadingToastId = toast.loading("Loading your quizzes and folders...", { id: 'my-quizzes-loading' });
     
     try {
-      // Get user's quizzes (created + permission-based)
+      const online = await offlineManager.isOnline();
+      setIsOffline(!online);
+      
+      if (!online) {
+        // Offline mode - load cached data
+        const cachedQuizzes = await offlineManager.getCachedQuizzes();
+        const userCachedQuizzes = cachedQuizzes
+          .filter(cached => cached.creator === user.id)
+          .map(cached => ({
+            id: cached.id,
+            title: cached.title,
+            description: cached.description,
+            questions: cached.questions,
+            creator: cached.creator,
+            isPublic: cached.isPublic,
+            tags: cached.tags,
+            folderPath: cached.folderPath,
+            createdAt: new Date(cached.cachedAt).toISOString()
+          }));
+        
+        setQuizzes(userCachedQuizzes);
+        setOfflineDataAvailable(userCachedQuizzes.length > 0);
+        
+        // Load cached folders
+        const cachedFolders = await offlineManager.getCachedFolders();
+        const folderData = cachedFolders.map(cached => ({
+          id: cached.id,
+          name: cached.name,
+          parentPath: cached.parentPath,
+          description: cached.description,
+          tags: cached.tags,
+          createdAt: new Date(cached.cachedAt).toISOString(),
+          isPublic: false // Default for cached folders
+        }));
+        setFolders(folderData);
+        
+        toast.success(`Offline mode: ${userCachedQuizzes.length} quizzes, ${folderData.length} folders`, { id: loadingToastId });
+        return;
+      }
+      
+      // Online mode - load fresh data and cache it
       const userQuizzes = await storage.getUserQuizzes(user.id);
       setQuizzes(userQuizzes);
       
-      // Get user's folders (created + permission-based)
+      // Cache quizzes for offline use
+      await offlineManager.cacheQuizzes(userQuizzes);
+      
       const userFolders = await storage.getUserFolders(user.id);
       setFolders(userFolders);
+      
+      // Cache folders for offline use
+      for (const folder of userFolders) {
+        await offlineManager.cacheFolder(folder);
+      }
       
       toast.success(`Loaded ${userQuizzes.length} quizzes and ${userFolders.length} folders`, { id: 'my-quizzes-loading' });
     } catch (error) {
@@ -318,7 +368,7 @@ export const MyQuizzes: React.FC = () => {
       {/* DEBUG SECTION - Shows what's happening */}
       <div className="mt-4 p-4 bg-red-500 text-white rounded">
         <div className="text-lg font-bold">🚨 DEBUG INFO</div>
-        <div>User: {user?.email}</div>
+        <div>User: {user?.email} {isOffline ? '📱 OFFLINE' : '🌐 ONLINE'}</div>
         <div>Current Path: "{currentPath}"</div>
         <div>Total Quizzes: {quizzes.length}</div>
         <div>Total Folders: {folders.length}</div>
@@ -327,6 +377,11 @@ export const MyQuizzes: React.FC = () => {
         <div>Show New Folder: {showNewFolder ? 'YES' : 'NO'}</div>
         <div>Show Move Dialog: {showMoveDialog ? 'YES' : 'NO'}</div>
         <div>Show Rename: {showRenameFolder ? showRenameFolder : 'NONE'}</div>
+        {isOffline && (
+          <div className="text-yellow-400 font-bold">
+            📱 OFFLINE MODE: {offlineDataAvailable ? 'Using cached data' : 'No cached data available'}
+          </div>
+        )}
         <div className="mt-2">
           <button 
             onClick={loadDataBypassCache}

@@ -464,6 +464,9 @@ const GoogleLinkingSection: React.FC = () => {
 
   return (
     <div className="border border-terminal-accent/30 p-3 rounded">
+      <div className="p-2 mb-2 border-2 border-yellow-400/60 bg-yellow-400/10 rounded text-yellow-300 font-semibold text-center">
+        🚧 Google OAuth - Work in Progress. Linking may be disabled or limited in this environment.
+      </div>
       <div className="flex items-center justify-between">
         <div>
           <div className="text-terminal-bright">Google</div>
@@ -488,7 +491,7 @@ const GoogleLinkingSection: React.FC = () => {
               )}
             </Tooltip>
           ) : (
-            <TerminalButton onClick={handleConnect} disabled={loading || !isConfigured}>
+            <TerminalButton onClick={handleConnect} disabled>
               {loading ? 'working...' : 'connect Google'}
             </TerminalButton>
           )}

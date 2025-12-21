@@ -10,6 +10,8 @@ interface QuizJsonEditorProps {
   onError: (error: string, line: number | null, column: number | null) => void;
 }
 
+import { LatexRenderer } from '@/components/LatexRenderer';
+
 export const QuizJsonEditor: React.FC<QuizJsonEditorProps> = ({ value, onChange, onError }) => {
   const [viewMode, setViewMode] = useState<"raw" | "readable">("raw");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -198,6 +200,16 @@ export const QuizJsonEditor: React.FC<QuizJsonEditorProps> = ({ value, onChange,
                       className="w-full bg-terminal border border-terminal-accent/30 rounded px-3 py-2 text-terminal-foreground focus:outline-none focus:border-terminal-accent"
                       placeholder="Enter question text"
                     />
+                    <RenderedEquationPreview
+                      text={q.q}
+                      onEdit={(oldEq, newEq) => {
+                        const oldToken = `$${oldEq}$`;
+                        if ((q.q || '').includes(oldToken)) {
+                          const updated = (q.q || '').replace(oldToken, `$${newEq}$`);
+                          updateQuestion(qIdx, 'q', updated);
+                        }
+                      }}
+                    />
                   </div>
                   <button
                     onClick={() => deleteQuestion(qIdx)}
@@ -221,13 +233,25 @@ export const QuizJsonEditor: React.FC<QuizJsonEditorProps> = ({ value, onChange,
                           className="accent-terminal-accent"
                           title="Mark as correct answer"
                         />
-                        <input
-                          type="text"
-                          value={option}
-                          onChange={(e) => updateOption(qIdx, oIdx, e.target.value)}
-                          className="flex-1 bg-terminal border border-terminal-accent/30 rounded px-3 py-1.5 text-terminal-foreground focus:outline-none focus:border-terminal-accent"
-                          placeholder={`Option ${oIdx + 1}`}
-                        />
+                        <div className="flex-1 space-y-1">
+                          <input
+                            type="text"
+                            value={option}
+                            onChange={(e) => updateOption(qIdx, oIdx, e.target.value)}
+                            className="w-full bg-terminal border border-terminal-accent/30 rounded px-3 py-1.5 text-terminal-foreground focus:outline-none focus:border-terminal-accent"
+                            placeholder={`Option ${oIdx + 1}`}
+                          />
+                          <RenderedEquationPreview
+                            text={option}
+                            onEdit={(oldEq, newEq) => {
+                              const oldToken = `$${oldEq}$`;
+                              if ((option || '').includes(oldToken)) {
+                                const updated = (option || '').replace(oldToken, `$${newEq}$`);
+                                updateOption(qIdx, oIdx, updated);
+                              }
+                            }}
+                          />
+                        </div>
                         <button
                           onClick={() => deleteOption(qIdx, oIdx)}
                           className="p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-colors"

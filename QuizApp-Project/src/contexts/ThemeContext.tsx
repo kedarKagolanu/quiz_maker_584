@@ -511,15 +511,31 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Use the force injection utility
     injectThemeStyles(preset, mode, gradientEnabled, brightness, colors);
     
-    // Save settings
-    localStorage.setItem('theme-mode', mode);
-    localStorage.setItem('theme-preset', preset);
-    localStorage.setItem('theme-gradient', String(gradientEnabled));
-    localStorage.setItem('theme-brightness', String(brightness));
+    // Batch localStorage operations to reduce main thread blocking
+    const batchSaveSettings = () => {
+      try {
+        const settings = {
+          'theme-mode': mode,
+          'theme-preset': preset,
+          'theme-gradient': String(gradientEnabled),
+          'theme-brightness': String(brightness)
+        };
+        
+        // Batch all localStorage operations
+        Object.entries(settings).forEach(([key, value]) => {
+          localStorage.setItem(key, value);
+        });
+      } catch (error) {
+        // Silently handle localStorage quota errors
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Theme settings save failed:', error);
+        }
+      }
+    };
     
-    // Removed forced reflow - causes performance issues
-    // Theme changes are applied immediately via CSS injection
-    
+    // Debounce to avoid blocking on rapid theme changes
+    const saveTimer = setTimeout(batchSaveSettings, 50);
+    return () => clearTimeout(saveTimer);
   }, [mode, preset, gradientEnabled, brightness]);
 
   const toggleMode = () => {

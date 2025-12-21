@@ -327,6 +327,9 @@ export class SupabaseDriver implements IStorageDriver {
 
   // Quiz operations
   async getQuizzes(): Promise<Quiz[]> {
+    const startTime = performance.now();
+    console.log('[DB] 📊 Loading full quizzes...');
+    
     // Include questions for question count but exclude heavy media
     const { data, error } = await this.supabase
       .from('quizzes')
@@ -336,9 +339,13 @@ export class SupabaseDriver implements IStorageDriver {
     
     if (error) this.handleDbError(error, 'fetch quizzes');
     
+    const queryTime = performance.now() - startTime;
+    console.log('[DB] ✅ Loaded quizzes', { count: data?.length || 0, timeMs: Math.round(queryTime) });
+    
     // CRITICAL: Use proper mapping function instead of raw spread
     return (data || []).map(this.mapQuizFromDb.bind(this));
   }
+
 
   async saveQuiz(quiz: Quiz): Promise<void> {
     try {

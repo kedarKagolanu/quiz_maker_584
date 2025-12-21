@@ -695,6 +695,17 @@ export const QuizCreator: React.FC = () => {
                   currentQuestionIndex={previewQuestionIndex}
                   onQuestionChange={setPreviewQuestionIndex}
                   onImageSizeChange={quizActions.setImageSize}
+                  editable={true}
+                  onEditQuestion={(qIndex, newText) => {
+                    const arr = getParsedQuestions();
+                    if (arr[qIndex]) { arr[qIndex].q = newText; quizActions.setJsonInput(JSON.stringify(arr, null, 2)); }
+                  }}
+                  onEditOption={(qIndex, optIndex, newText) => {
+                    const arr = getParsedQuestions();
+                    if (arr[qIndex] && Array.isArray(arr[qIndex].o) && arr[qIndex].o[optIndex] != null) {
+                      arr[qIndex].o[optIndex] = newText; quizActions.setJsonInput(JSON.stringify(arr, null, 2));
+                    }
+                  }}
                 />
               </div>
             </div>

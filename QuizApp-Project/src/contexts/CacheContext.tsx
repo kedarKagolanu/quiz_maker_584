@@ -69,10 +69,10 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
     return count;
   };
 
-  // Refresh stats every 30 seconds
+  // Refresh stats every 5 minutes (reduced from 30s to improve performance)
   useEffect(() => {
     refreshStats();
-    const interval = setInterval(refreshStats, 30000);
+    const interval = setInterval(refreshStats, 300000); // 5 minutes
     return () => clearInterval(interval);
   }, []);
 

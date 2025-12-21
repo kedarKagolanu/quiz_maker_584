@@ -309,7 +309,14 @@ export const QuizBrowser: React.FC = () => {
         break;
       
       case 'folder':
-        if (selectedFolder) {
+        if (selectedFolder === 'root') {
+          // Show only root content (quizzes and folders with no parent)
+          setCurrentFolderPath("");
+          const rootQuizzes = quizzes.filter(q => !q.folderPath || q.folderPath === '');
+          const rootFolders = folders.filter(f => !f.parentPath || f.parentPath === '');
+          setFolderContents({quizzes: rootQuizzes, subfolders: rootFolders});
+          filtered = rootQuizzes;
+        } else if (selectedFolder) {
           const folderPath = getFolderPath(selectedFolder);
           setCurrentFolderPath(folderPath);
           // Get both quizzes and subfolders for this folder
@@ -318,12 +325,16 @@ export const QuizBrowser: React.FC = () => {
           setFolderContents({quizzes: folderQuizzes, subfolders});
           filtered = folderQuizzes;
         } else {
-          // Show independent quizzes (no folder path)
+          // Default: show all content
           setCurrentFolderPath("");
-          const independentQuizzes = quizzes.filter(q => !q.folderPath || q.folderPath === '');
-          const rootFolders = folders.filter(f => !f.parentPath || f.parentPath === '');
-          setFolderContents({quizzes: independentQuizzes, subfolders: rootFolders});
-          filtered = independentQuizzes;
+          const allQuizzes = quizzes.filter(q => 
+            q.isPublic || 
+            q.creator === user.id || 
+            q.sharedWith?.includes(user.id)
+          );
+          const allFolders = folders;
+          setFolderContents({quizzes: allQuizzes, subfolders: allFolders});
+          filtered = allQuizzes;
         }
         break;
       
@@ -619,11 +630,11 @@ export const QuizBrowser: React.FC = () => {
                   <TerminalButton
                     onClick={() => {
                       setActiveFilter('folder');
-                      setSelectedFolder(null);
+                      setSelectedFolder('root');
                     }}
-                    className={activeFilter === 'folder' && !selectedFolder ? 'bg-terminal-accent/20' : ''}
+                    className={activeFilter === 'folder' && selectedFolder === 'root' ? 'bg-terminal-accent/20' : ''}
                   >
-                    Independent Quizzes
+                    Root Content Only
                   </TerminalButton>
                   
                   {folders.filter(f => !f.parentPath || f.parentPath === '').map(folder => (
@@ -641,7 +652,7 @@ export const QuizBrowser: React.FC = () => {
                   ))}
                 </div>
                 <div className="ml-6 text-xs text-terminal-dim mt-2">
-                  Note: "Independent Quizzes" shows quizzes not in any folder. Click a folder to see its contents.
+                  Note: "Root Content Only" shows quizzes and folders at the root level only. Click a folder to see its contents.
                 </div>
               </div>
             )}
@@ -680,67 +691,10 @@ export const QuizBrowser: React.FC = () => {
           </div>
 
           <div className="ml-6 space-y-3">
-            {/* Show folders (moved below quizzes) */}
-            {false && processedFolders.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2">
-                  <Folder className="w-4 h-4" />
-                  Folders ({processedFolders.length})
-                  {processedFolders.length !== folderContents.subfolders.length && (
-                    <span className="text-xs text-terminal-dim">
-                      of {folderContents.subfolders.length} total
-                    </span>
-                  )}
-                </div>
-                {processedFolders.map(folder => (
-                  <div
-                    key={folder.id}
-                    onClick={() => handleFolderClick(folder)}
-                    className="p-3 border border-blue-500/30 rounded cursor-pointer hover:border-blue-500/60 transition-colors bg-blue-500/5"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Folder className="w-4 h-4 text-blue-400" />
-                      <span className="text-terminal-bright font-semibold">{folder.name}</span>
-                      <span className="text-xs text-terminal-dim">
-                        ({getFolderQuizCount(getFolderPath(folder.id))} quiz{getFolderQuizCount(getFolderPath(folder.id)) !== 1 ? 'es' : ''})
-                      </span>
-                    </div>
-                    {folder.description && (
-                      <p className="text-terminal-foreground text-sm mt-1 ml-6">{folder.description}</p>
-                    )}
-                    
-                    {/* Folder Tags */}
-                    {folder.tags && folder.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2 ml-6">
-                        {folder.tags.map(tag => (
-                          <Badge
-                            key={tag}
-                            variant="outline"
-                            className="text-xs px-2 py-0 text-blue-400 border-blue-400/30 hover:bg-blue-400/10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTags(prev => 
-                                prev.includes(tag) 
-                                  ? prev.filter(t => t !== tag)
-                                  : [...prev, tag]
-                              );
-                              setShowAdvancedFilters(true);
-                            }}
-                          >
-                            <Tag className="w-3 h-3 mr-1" />
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
 
-            {/* Show quizzes */}
+            {/* Quizzes first - with header */}
             {processedQuizzes.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2 mb-4">
                 <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2">
                   <FileText className="w-4 h-4" />
                   Quizzes ({processedQuizzes.length})
@@ -750,14 +704,9 @@ export const QuizBrowser: React.FC = () => {
                     </span>
                   )}
                 </div>
-              </div>
-            )}
-            
-            {/* Quizzes first */}
-            {processedQuizzes.length === 0 ? (
-              <></>
-            ) : (
-              processedQuizzes.map(quiz => {
+                
+                {/* Quiz cards */}
+                {processedQuizzes.map(quiz => {
                 const stats = getQuizStats(quiz);
                 return (
                   <div key={quiz.id} onClick={() => handleQuizClick(quiz, false)} className="p-4 border border-terminal-accent/30 rounded cursor-pointer hover:border-terminal-accent/60 transition-colors">
@@ -767,28 +716,111 @@ export const QuizBrowser: React.FC = () => {
                           <FileText className="w-4 h-4 text-terminal-accent" />
                           <span className="text-terminal-bright font-semibold">{quiz.title}</span>
                         </div>
+                        
+                        {quiz.description && (
+                          <p className="text-terminal-foreground text-sm mb-2">{quiz.description}</p>
+                        )}
+                        
+                        <div className="text-xs text-terminal-dim space-y-1">
+                          <div>Questions: {quiz.questions?.length || 0}</div>
+                          <div>Creator: {quiz.creator}</div>
+                          {quiz.isPublic && <div className="text-green-400">Public</div>}
+                        </div>
+                        
+                        {/* Quiz Tags */}
+                        {quiz.tags && quiz.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {quiz.tags.map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-block bg-terminal-accent/20 text-terminal-bright px-2 py-1 rounded-full text-xs border border-terminal-accent/30"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 );
-              })
+                })}
+
+              </div>
             )}
 
-            {/* Then folders */}
+            {/* Folders - hierarchical only for root content, flat otherwise */}
             {processedFolders.length > 0 && (
               <div className="space-y-2">
                 <div className="text-sm font-semibold text-terminal-bright flex items-center gap-2">
                   <Folder className="w-4 h-4" />
                   Folders ({processedFolders.length})
                 </div>
-                {processedFolders.map(folder => (
-                  <div key={folder.id} onClick={() => handleFolderClick(folder)} className="p-3 border border-blue-500/30 rounded cursor-pointer hover:border-blue-500/60 transition-colors bg-blue-500/5">
-                    <div className="flex items-center gap-2">
-                      <Folder className="w-4 h-4 text-blue-400" />
-                      <span className="text-terminal-bright font-semibold">{folder.name}</span>
-                    </div>
-                  </div>
-                ))}
+                {processedFolders
+                  .sort((a, b) => {
+                    // For root content only, sort hierarchically. For others, sort alphabetically.
+                    if (activeFilter === 'folder' && selectedFolder === 'root') {
+                      const aDepth = (a.parentPath || '').split('/').filter(Boolean).length;
+                      const bDepth = (b.parentPath || '').split('/').filter(Boolean).length;
+                      if (aDepth !== bDepth) return aDepth - bDepth;
+                      return a.name.localeCompare(b.name);
+                    }
+                    return a.name.localeCompare(b.name);
+                  })
+                  .map(folder => {
+                    const showHierarchy = activeFilter === 'folder' && selectedFolder === 'root';
+                    const depth = showHierarchy ? (folder.parentPath || '').split('/').filter(Boolean).length : 0;
+                    const indentClass = showHierarchy && depth > 0 ? `ml-${Math.min(depth * 4, 16)}` : '';
+                    
+                    // Build full path for non-hierarchical display
+                    const fullPath = folder.parentPath ? `${folder.parentPath}/${folder.name}` : folder.name;
+                    
+                    return (
+                      <div
+                        key={folder.id}
+                        onClick={() => handleFolderClick(folder)}
+                        className={`p-3 border border-blue-500/30 rounded cursor-pointer hover:border-blue-500/60 transition-colors bg-blue-500/5 ${indentClass}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {showHierarchy && depth > 0 && <span className="text-terminal-dim">{'└─'.repeat(Math.min(depth, 3))}</span>}
+                          <Folder className="w-4 h-4 text-blue-400" />
+                          <span className="text-terminal-bright font-semibold">
+                            {showHierarchy ? folder.name : fullPath}
+                          </span>
+                          <span className="text-xs text-terminal-dim">
+                            ({getFolderQuizCount(getFolderPath(folder.id))} quiz{getFolderQuizCount(getFolderPath(folder.id)) !== 1 ? 'es' : ''})
+                          </span>
+                          {showHierarchy && depth > 0 && <span className="text-xs text-terminal-dim/70">depth {depth}</span>}
+                        </div>
+                        
+                        {/* Show path for non-hierarchical display */}
+                        {!showHierarchy && folder.parentPath && (
+                          <div className="text-xs text-terminal-dim/70 ml-6 mt-1">
+                            Path: {folder.parentPath}
+                          </div>
+                        )}
+                        
+                        {folder.description && (
+                          <p className="text-terminal-foreground text-sm mt-1 ml-6">{folder.description}</p>
+                        )}
+                        
+                        {/* Folder Tags */}
+                        {folder.tags && folder.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2 ml-6">
+                            {folder.tags.map((tag, tagIdx) => (
+                              <span
+                                key={tagIdx}
+                                className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs border border-blue-300"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                }
               </div>
             )}
           </div>
